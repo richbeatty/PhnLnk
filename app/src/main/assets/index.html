@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>PhnLnk</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; background: #f6f6f3; color:#171a17; }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:28px 18px; }
+    main { width:100%; max-width:470px; margin:0 auto; }
+    h1 {font-size:34px; font-weight:650; letter-spacing:-1.5px; margin: 6px 0 4px;}
+    .muted { color:#666e67; line-height:1.5; }
+    .card {background:white; border:1px solid #e1e3dc; border-radius:18px; padding:22px; margin-top:20px;}
+    .status {display:flex; justify-content:space-between; align-items:center; gap:10px; }
+    .dot {width:9px; height:9px; border-radius:50%; background:#b9b9b2; display:inline-block; margin-right:6px;}
+    .ready .dot {background:#4f7962;}
+    .ringing .dot {background:#b08a42;}
+    .state {font-weight:600; text-transform:capitalize;}
+    input {width:100%; border:1px solid #d7dbd4; background:#fafaf8; border-radius:12px;
+      padding:16px; font-size:24px; letter-spacing:1px; margin:20px 0; color:#151815;}
+    button {cursor:pointer; font:inherit; border-radius:12px; font-weight:600;
+      padding:14px 16px; border:1px solid #d9ddd6; background:#fff; color:#212821;}
+    button:disabled {cursor:not-allowed; opacity:.45;}
+    .dial {width:100%; background:#2d5944; color:#fff; border-color:#2d5944;}
+    .row {display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    #answer {background:#e5f2e9; border-color:#c7dfce;}
+    #end {background:#f8e9e6; border-color:#edceca;}
+    #message {min-height:22px; margin:15px 0 0; font-size:14px;}
+    .small {font-size:12px; margin-top:20px; line-height:1.6;}
+    .tag {background:#eaece5; padding:4px 8px; border-radius:6px; font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="tag">HOST PREVIEW · V0.1</div>
+    <h1>PhnLnk</h1>
+    <div class="muted">Your phone number. Your devices.</div>
+    <section class="card">
+      <div class="status">
+        <div><div id="indicator"><span class="dot"></span><span class="state" id="state">Connecting</span></div>
+          <div class="muted" id="device" style="font-size:13px;margin-top:8px">Waiting for host</div></div>
+        <button id="refresh" style="font-size:13px;padding:9px 12px">Refresh</button>
+      </div>
+    </section>
+    <section class="card">
+      <label for="number" style="font-weight:600">Make a call</label>
+      <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567">
+      <button class="dial" id="dial">Call from MP01</button>
+      <div class="row" style="margin-top:12px">
+        <button id="answer">Answer</button>
+        <button id="end">End call</button>
+      </div>
+      <div id="message" role="status" aria-live="polite" class="muted"></div>
+    </section>
+    <p class="small muted">
+      This is a call-control prototype. Calls use the AT&amp;T line on the MP01,
+      but voice stays on the phone. Remote two-way audio is not connected yet.
+      Never rely on this interface for emergency calls. Use only on a trusted
+      network or through a private VPN.
+    </p>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    let busy = false;
+    async function status() {
+      try {
+        const response = await fetch('/api/status', {cache:'no-store'});
+        if (!response.ok) throw Error('Host unavailable (' + response.status + ')');
+        const data = await response.json();
+        $('state').textContent = data.callState;
+        $('device').textContent = data.model + ' · Android ' + data.android;
+        $('indicator').className = data.callState === 'ringing' ? 'ringing' :
+          data.callState === 'active' || data.callState === 'idle' ? 'ready' : '';
+        $('answer').disabled = busy || data.callState !== 'ringing' || !data.answerPermission;
+        $('end').disabled = busy || (data.callState !== 'active' && data.callState !== 'ringing');
+        $('dial').disabled = busy || data.callState !== 'idle' || !data.callPermission;
+      } catch (error) {
+        $('state').textContent = 'Disconnected';
+        $('device').textContent = error.message;
+        for (const id of ['dial','answer','end']) $(id).disabled = true;
+      }
+    }
+    async function action(which, params = {}) {
+      if (busy) return;
+      busy = true;
+      $('message').textContent = 'Sending request...';
+      try {
+        const response = await fetch('/api/' + which, {
+          method:'POST',
+          headers:{'Content-Type':'application/json','X-PhnLnk':'1'},
+          body:JSON.stringify(params)
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw Error(payload.error || 'Request failed');
+        $('message').textContent = 'Request sent to MP01.';
+      } catch(error) {
+        $('message').textContent = error.message;
+      } finally {
+        busy = false;
+        setTimeout(status, 800);
+      }
+    }
+    $('dial').addEventListener('click', () => action('dial',{number:$('number').value}));
+    $('answer').addEventListener('click', () => action('answer'));
+    $('end').addEventListener('click', () => action('end'));
+    $('refresh').addEventListener('click', status);
+    status();
+    setInterval(status, 3000);
+  </script>
+</body>
+</html>
