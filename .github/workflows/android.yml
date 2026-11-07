@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -21,8 +21,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # GitHub's standard Ubuntu runner already includes the Android SDK and API 35.
-      # setup-android currently fails while accepting legacy optional SDK licenses.
       - name: Check preinstalled Android SDK
         run: |
           test -f "$ANDROID_HOME/platforms/android-35/android.jar"
@@ -33,12 +31,36 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
+      - name: Build Android APK
         run: gradle --no-daemon :app:assembleDebug
 
-      - name: Save Android APK
+      - name: Prepare easy-download APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-MP01.apk
+
+      - name: Save APK in Actions
         uses: actions/upload-artifact@v4
         with:
           name: PhnLnk-MP01-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: PhnLnk-MP01.apk
           if-no-files-found: error
+
+      - name: Publish downloadable GitHub preview release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.1
+          target_commitish: ${{ github.sha }}
+          name: PhnLnk v0.1.1 MP01 control preview
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
+          files: PhnLnk-MP01.apk
+          body: |
+            Download `PhnLnk-MP01.apk` below and install it on the MP01.
+
+            IMPORTANT: This is a call-control preview, not a finished Beeper-like calling app.
+            You can dial, answer, and end AT&T calls through a browser on a trusted local network,
+            but cellular call AUDIO is NOT relayed to your tablet or computer.
+            No Shizuku or root is required to install or test this control-only version.
+            Never use the remote dialer for emergency calls.
+
+            See the project README for setup, privacy limitations, and the unresolved two-way audio blocker.
