@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -21,8 +21,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Android SDK
-        uses: android-actions/setup-android@v3
+      # GitHub's standard Ubuntu runner already includes the Android SDK and API 35.
+      # setup-android currently fails while accepting legacy optional SDK licenses.
+      - name: Check preinstalled Android SDK
+        run: |
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          echo "Android SDK: $ANDROID_HOME"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
