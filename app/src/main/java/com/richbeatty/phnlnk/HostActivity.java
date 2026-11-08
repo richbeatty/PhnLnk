@@ -218,11 +218,8 @@ public final class HostActivity extends Activity {
             if (permissionsButton != null) permissionsButton.setVisibility(
                     hasRequiredPermissions() ? View.GONE : View.VISIBLE);
             String link = preferredUrl();
-            RoleManager role = (RoleManager) getSystemService(ROLE_SERVICE);
-            boolean advanced = role != null && role.isRoleHeld(RoleManager.ROLE_DIALER);
             status.setText("Host: " + (GatewayService.isRunning() ? "Ready" : "Off")
                     + "    Call: " + report.getString("callState")
-                    + "\nIn-call tones: " + (advanced ? "Enabled" : "Set PhnLnk as default Phone app")
                     + "\nConnected devices: " + PairingManager.get(this).count()
                     + "\n\nFor a PC browser: "
                     + (link == null ? "Connect this phone to Wi-Fi" : link));
