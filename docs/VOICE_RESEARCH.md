@@ -1,5 +1,7 @@
 # Voice gateway research, November 2026
 
+**Historical research:** the Linux-gateway selection below was rejected by the owner and is not the current architecture. Optional direct ADB is now authorized without Shizuku. The current assessment and manufacturer policy evidence are in [MP01 feasibility](MP01_AUDIO_FEASIBILITY.md).
+
 ## Question
 
 Can an ordinary, unrooted Android 14 phone share the actual audio of a carrier cellular call with another Android tablet, using only two installed apps, no Shizuku and no carrier change?

@@ -1,0 +1,453 @@
+{
+  "reviewed": "2026-11-08",
+  "installed_firmware_match": "UNKNOWN",
+  "policies": [
+    {
+      "source": "https://github.com/minimalcompany/mp01-device/blob/1dff2f7fa804af63e8c9c5f5ddaae6af4a44b74a/device/mediatek/mt6789/audio_policy_config/audio_policy_configuration.xml",
+      "sha256": "f634f82811abfbf03ec8b3e0f344bc5747941e8fe2a8d4a24a6a4888b5e6c02a",
+      "analysis": {
+        "evidence": "DECLARED_POLICY_ONLY_NOT_AUDIBILITY",
+        "modules": [
+          {
+            "module": "primary",
+            "hal_version": "3.0",
+            "call_input_devices": [
+              {
+                "name": "Voice Call In",
+                "type": "AUDIO_DEVICE_IN_VOICE_CALL",
+                "canonical_type": "AUDIO_DEVICE_IN_TELEPHONY_RX",
+                "flags": "",
+                "profiles": [
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_16_BIT",
+                    "samplingRates": "8000 16000 32000 44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_IN_MONO"
+                  }
+                ]
+              }
+            ],
+            "telephony_tx_devices": [
+              {
+                "name": "Telephony Tx",
+                "type": "AUDIO_DEVICE_OUT_TELEPHONY_TX",
+                "canonical_type": "AUDIO_DEVICE_OUT_TELEPHONY_TX",
+                "flags": "",
+                "profiles": [
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_32_BIT",
+                    "samplingRates": "44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_OUT_MONO"
+                  },
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_16_BIT",
+                    "samplingRates": "44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_OUT_MONO"
+                  }
+                ]
+              }
+            ],
+            "downlink_routes": [
+              {
+                "sink": "Earpiece",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "voip_rx",
+                  "mmap_no_irq_out",
+                  "fast",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Speaker",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "mmap_no_irq_out",
+                  "fast",
+                  "FM Tuner In",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Wired Headset",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "mmap_no_irq_out",
+                  "fast",
+                  "FM Tuner In",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Wired Headphones",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "mmap_no_irq_out",
+                  "fast",
+                  "FM Tuner In",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "USB Device Out",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "FM Tuner In",
+                  "voip_rx",
+                  "Voice Call In",
+                  "hifi_playback"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "USB Headset Out",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "FM Tuner In",
+                  "voip_rx",
+                  "Voice Call In",
+                  "hifi_playback"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO Headset",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO Car Kit",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "voip_rx",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "voice tx",
+                "sources": [
+                  "Voice Call In"
+                ],
+                "capture_mix": {
+                  "name": "voice tx",
+                  "type": null,
+                  "canonical_type": null,
+                  "flags": "",
+                  "profiles": [
+                    {
+                      "name": "",
+                      "format": "AUDIO_FORMAT_PCM_16_BIT",
+                      "samplingRates": "8000 16000 32000 44100 48000",
+                      "channelMasks": "AUDIO_CHANNEL_IN_MONO"
+                    }
+                  ]
+                }
+              }
+            ],
+            "uplink_routes": [
+              {
+                "sink": "Telephony Tx",
+                "sources": [
+                  "Built-In Mic",
+                  "Built-In Back Mic",
+                  "Wired Headset Mic",
+                  "BT SCO Headset Mic",
+                  "USB Device In",
+                  "USB Headset In",
+                  "incall_music_uplink"
+                ],
+                "playback_mixes": [
+                  {
+                    "name": "incall_music_uplink",
+                    "type": null,
+                    "canonical_type": null,
+                    "flags": "AUDIO_OUTPUT_FLAG_INCALL_MUSIC",
+                    "profiles": [
+                      {
+                        "name": "",
+                        "format": "AUDIO_FORMAT_PCM_32_BIT",
+                        "samplingRates": "44100 48000",
+                        "channelMasks": "AUDIO_CHANNEL_OUT_STEREO"
+                      },
+                      {
+                        "name": "",
+                        "format": "AUDIO_FORMAT_PCM_16_BIT",
+                        "samplingRates": "44100 48000",
+                        "channelMasks": "AUDIO_CHANNEL_OUT_STEREO"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "unresolved_includes": [
+          "bluetooth_audio_policy_configuration.xml",
+          "a2dp_in_audio_policy_configuration.xml",
+          "usb_audio_accessory_only_policy_configuration.xml",
+          "r_submix_audio_policy_configuration.xml",
+          "audio_policy_volumes.xml",
+          "default_volume_tables.xml"
+        ]
+      }
+    },
+    {
+      "source": "https://github.com/minimalcompany/mp01-device/blob/1dff2f7fa804af63e8c9c5f5ddaae6af4a44b74a/device/mediatek/vendor/common/audio_policy_config/audio_policy_configuration.xml",
+      "sha256": "aed08f42bc4cff42664b82716882e02d4cdd5fdd8c304c7f60ce665dd470d60f",
+      "analysis": {
+        "evidence": "DECLARED_POLICY_ONLY_NOT_AUDIBILITY",
+        "modules": [
+          {
+            "module": "primary",
+            "hal_version": "3.0",
+            "call_input_devices": [
+              {
+                "name": "Voice Call In",
+                "type": "AUDIO_DEVICE_IN_VOICE_CALL",
+                "canonical_type": "AUDIO_DEVICE_IN_TELEPHONY_RX",
+                "flags": "",
+                "profiles": [
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_16_BIT",
+                    "samplingRates": "8000 16000 32000 44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_IN_MONO AUDIO_CHANNEL_IN_STEREO AUDIO_CHANNEL_IN_VOICE_UPLINK AUDIO_CHANNEL_IN_VOICE_DNLINK"
+                  }
+                ]
+              }
+            ],
+            "telephony_tx_devices": [
+              {
+                "name": "Telephony Tx",
+                "type": "AUDIO_DEVICE_OUT_TELEPHONY_TX",
+                "canonical_type": "AUDIO_DEVICE_OUT_TELEPHONY_TX",
+                "flags": "",
+                "profiles": [
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_32_BIT",
+                    "samplingRates": "44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_OUT_STEREO"
+                  },
+                  {
+                    "name": "",
+                    "format": "AUDIO_FORMAT_PCM_16_BIT",
+                    "samplingRates": "44100 48000",
+                    "channelMasks": "AUDIO_CHANNEL_OUT_STEREO"
+                  }
+                ]
+              }
+            ],
+            "downlink_routes": [
+              {
+                "sink": "Earpiece",
+                "sources": [
+                  "primary output",
+                  "fast",
+                  "deep_buffer",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Speaker",
+                "sources": [
+                  "primary output",
+                  "fast",
+                  "deep_buffer",
+                  "FM Tuner In",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Wired Headset",
+                "sources": [
+                  "primary output",
+                  "fast",
+                  "deep_buffer",
+                  "FM Tuner In",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "Wired Headphones",
+                "sources": [
+                  "primary output",
+                  "fast",
+                  "deep_buffer",
+                  "FM Tuner In",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "USB Device Out",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "FM Tuner In",
+                  "Voice Call In",
+                  "hifi_playback"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "USB Headset Out",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "FM Tuner In",
+                  "Voice Call In",
+                  "hifi_playback"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO Headset",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "BT SCO Car Kit",
+                "sources": [
+                  "primary output",
+                  "deep_buffer",
+                  "fast",
+                  "Voice Call In"
+                ],
+                "capture_mix": null
+              },
+              {
+                "sink": "primary input",
+                "sources": [
+                  "Built-In Mic",
+                  "Built-In Back Mic",
+                  "Wired Headset Mic",
+                  "BT SCO Headset Mic",
+                  "AUX Digital In",
+                  "FM Tuner In",
+                  "Voice Call In",
+                  "USB Device In",
+                  "USB Headset In"
+                ],
+                "capture_mix": {
+                  "name": "primary input",
+                  "type": null,
+                  "canonical_type": null,
+                  "flags": "",
+                  "profiles": [
+                    {
+                      "name": "",
+                      "format": "AUDIO_FORMAT_PCM_16_BIT",
+                      "samplingRates": "8000 16000 32000 44100 48000",
+                      "channelMasks": "AUDIO_CHANNEL_IN_MONO AUDIO_CHANNEL_IN_STEREO AUDIO_CHANNEL_IN_VOICE_UPLINK AUDIO_CHANNEL_IN_VOICE_DNLINK"
+                    }
+                  ]
+                }
+              },
+              {
+                "sink": "voice tx",
+                "sources": [
+                  "Voice Call In"
+                ],
+                "capture_mix": {
+                  "name": "voice tx",
+                  "type": null,
+                  "canonical_type": null,
+                  "flags": "",
+                  "profiles": [
+                    {
+                      "name": "",
+                      "format": "AUDIO_FORMAT_PCM_16_BIT",
+                      "samplingRates": "8000 16000 32000 44100 48000",
+                      "channelMasks": "AUDIO_CHANNEL_IN_MONO AUDIO_CHANNEL_IN_STEREO AUDIO_CHANNEL_IN_VOICE_UPLINK AUDIO_CHANNEL_IN_VOICE_DNLINK"
+                    }
+                  ]
+                }
+              }
+            ],
+            "uplink_routes": [
+              {
+                "sink": "Telephony Tx",
+                "sources": [
+                  "Built-In Mic",
+                  "Built-In Back Mic",
+                  "Wired Headset Mic",
+                  "BT SCO Headset Mic",
+                  "USB Device In",
+                  "USB Headset In"
+                ],
+                "playback_mixes": []
+              }
+            ]
+          }
+        ],
+        "unresolved_includes": [
+          "bluetooth_audio_policy_configuration.xml",
+          "a2dp_in_audio_policy_configuration.xml",
+          "usb_audio_accessory_only_policy_configuration.xml",
+          "r_submix_audio_policy_configuration.xml",
+          "audio_policy_volumes.xml",
+          "default_volume_tables.xml"
+        ]
+      }
+    }
+  ]
+}

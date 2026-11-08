@@ -48,7 +48,7 @@ Start each substantive change by reading the affected code and its documentation
 - Revoking pairings terminates current media.
 - Shell helper uses a separate per-install secret and loopback socket.
 - Do not turn voice HTTP into raw unencrypted media. The voice TCP listener must retain authenticated encryption.
-- The HTTP control and initial pairing channel are **still plaintext** and only appropriate on trusted private networks.
+- Control and initial pairing use pinned HTTPS from 0.9.3. Preserve explicit host verification, saved-token migration and fail-closed behavior. Still require a trusted private network/VPN; TLS alone is not public deployment readiness.
 
 ### Voice wire format
 

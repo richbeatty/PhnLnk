@@ -254,8 +254,9 @@ public final class HostActivity extends Activity {
                     + "    Call: " + report.getString("callState")
                     + "\nAudio test: " + AudioAccessState.display(this)
                     + "\nConnected devices: " + PairingManager.get(this).count()
-                    + "\n\nFor a PC browser: "
-                    + (link == null ? "Connect this phone to Wi-Fi" : link));
+                + "\n\nPrivate HTTPS address: "
+                    + (link == null ? "Connect this phone to Wi-Fi or private VPN" : link)
+                    + "\n\nSecurity fingerprint:\n" + ControlTls.displayPin(HostTlsIdentity.fingerprint()));
             String code = PairingManager.get(this).current();
             String url = preferredUrl();
             if (code == null || url == null) {
@@ -264,11 +265,12 @@ public final class HostActivity extends Activity {
                 qr.setVisibility(View.GONE);
                 qr.setTag(null);
             } else {
-                pairInfo.setText("Scan with PhnLnk on another Android device, or enter this code on your PC. Expires in 5 minutes:");
+                pairInfo.setText("Scan this QR on your companion to verify the encrypted connection, then tap Connect phone. Expires in 5 minutes:");
                 pairCode.setText(code);
                 qr.setVisibility(View.VISIBLE);
-                String ip = url.substring("http://".length(), url.lastIndexOf(':'));
-                String qrValue = "phnlnk://pair?host=" + ip + "&code=" + code;
+                String ip = url.substring("https://".length(), url.lastIndexOf(':'));
+                String qrValue = "phnlnk://pair?host=" + ip + "&code=" + code
+                        + "&fingerprint=" + HostTlsIdentity.fingerprint();
                 if (!qrValue.equals(qr.getTag())) {
                     qr.setImageBitmap(renderQr(qrValue));
                     qr.setTag(qrValue);
@@ -283,6 +285,8 @@ public final class HostActivity extends Activity {
         try {
             Enumeration<NetworkInterface> all = NetworkInterface.getNetworkInterfaces();
             String fallback = null;
+            String wifi = null;
+            String overlay = null;
             while (all.hasMoreElements()) {
                 NetworkInterface device = all.nextElement();
                 if (!device.isUp() || device.isLoopback()) continue;
@@ -290,12 +294,18 @@ public final class HostActivity extends Activity {
                 while (addresses.hasMoreElements()) {
                     InetAddress ip = addresses.nextElement();
                     if (!(ip instanceof Inet4Address) || ip.isLinkLocalAddress() || ip.isLoopbackAddress()) continue;
-                    String link = "http://" + ip.getHostAddress() + ":" + Config.PORT;
-                    if (device.getName().startsWith("wlan")) return link;
-                    if (ip.isSiteLocalAddress()) fallback = link;
+                    String address;
+                    try { address = RemoteClient.normalizeHost(ip.getHostAddress()); }
+                    catch (IllegalArgumentException untrusted) { continue; }
+                    String link = "https://" + address + ":" + Config.PORT;
+                    if (address.startsWith("100.") &&
+                            (device.getName().startsWith("tun") || device.getName().startsWith("wg")))
+                        overlay = link;
+                    if (device.getName().startsWith("wlan")) wifi = link;
+                    fallback = link;
                 }
             }
-            return fallback;
+            return overlay != null ? overlay : wifi != null ? wifi : fallback;
         } catch (Exception ignored) {
             return null;
         }

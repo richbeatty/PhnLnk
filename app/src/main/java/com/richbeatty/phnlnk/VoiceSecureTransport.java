@@ -19,8 +19,8 @@ import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Audio-only authenticated encrypted TCP protocol for a paired LAN device.
- * The existing HTTP call-control channel is separate and is NOT encrypted.
- * Never expose the existing HTTP listener to the public Internet.
+ * Call control uses a separate pinned HTTPS connection from v0.9.3.
+ * Keep both listeners on private networks; no public port forwarding.
  *
  * Handshake uses HMAC-SHA256 proofs based on SHA-256 of the pairing token,
  * so the raw token and the secret itself are never sent in the clear here.
@@ -106,7 +106,13 @@ final class VoiceSecureTransport {
         byte[] serverNonce=new byte[32];RANDOM.nextBytes(serverNonce);
         output.writeInt(MAGIC);output.write(serverNonce);output.flush();
         byte[] clientNonce=new byte[16],clientProof=new byte[32];
-        input.readFully(clientNonce);input.readFully(clientProof);
+        try {
+            input.readFully(clientNonce);input.readFully(clientProof);
+        } catch (EOFException closed) {
+            throw new IOException("VOICE_HANDSHAKE_CLOSED at WAIT_COMPANION_PROOF", closed);
+        } catch (SocketTimeoutException timeout) {
+            throw new IOException("VOICE_HANDSHAKE_TIMEOUT at WAIT_COMPANION_PROOF", timeout);
+        }
         byte[] key=PairingManager.get(ctx).findVoiceKey(serverNonce,clientNonce,clientProof);
         if(key==null)throw new SecurityException("Voice device isn't paired");
         output.write(proof(key,"server",serverNonce,clientNonce));output.flush();
@@ -130,7 +136,7 @@ final class VoiceSecureTransport {
             this.txPrefix=txPrefix;this.rxPrefix=rxPrefix;
         }
 
-        void send(byte[] pcm) throws Exception {
+        synchronized void send(byte[] pcm) throws Exception {
             if(pcm.length!=FRAME_BYTES)throw new IOException("Unexpected PCM frame size");
             if(sendSequence>=Long.MAX_VALUE-1)throw new IOException("Voice session expired");
             long seq=sendSequence++;
@@ -147,7 +153,13 @@ final class VoiceSecureTransport {
             }
         }
 
+        // Independent locks permit full duplex while serializing concurrent callers
+        // in each direction. Sequence allocation and encryption are one operation.
         byte[] receive() throws Exception {
+            synchronized (input) { return receiveFrame(); }
+        }
+
+        private byte[] receiveFrame() throws Exception {
             try {
                 long seq=input.readLong();
                 int length=input.readUnsignedShort();
@@ -167,7 +179,7 @@ final class VoiceSecureTransport {
                         "before the next complete encrypted audio frame.",closed);
             } catch (SocketTimeoutException timedOut) {
                 throw new IOException("VOICE_MEDIA_TIMEOUT: No encrypted audio received "+
-                        "for 12 seconds. Check the host audio helper and connection.",timedOut);
+                        "within the current stage's receive timeout. Check the host audio helper and connection.",timedOut);
             }
         }
     }

@@ -7,3 +7,5 @@ local.properties
 .DS_Store
 *.apk
 *.aab
+app/src/main/assets/phnlnk-probe.jar
+__pycache__/

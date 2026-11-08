@@ -27,6 +27,11 @@ jobs:
       - name: Verify encrypted voice protocol and EOF handling
         run: bash tools/test_voice_protocol.sh
 
+      - name: Verify pinned control TLS and offline policy inspector
+        run: |
+          bash tools/test_control_tls.sh
+          python3 tools/test_audio_policy.py
+
       - name: Check Android SDK and D8
         run: |
           test -f "$ANDROID_HOME/platforms/android-35/android.jar"
@@ -139,8 +144,10 @@ jobs:
             transport and cellular audio backends.
           - NOT verified to transmit actual carrier voice on the physical MP01.
             A passing JVM protocol test or Android build is not an audio test.
-          - The existing call-control HTTP and pairing channel remains
-            UNENCRYPTED. Do not expose the local ports to the public internet.
+          - Pairing and call control use HTTPS with a verified host
+            certificate pin. Existing companions verify the host once;
+            saved tokens are retained. No plaintext fallback.
+          - Do not expose the local ports to the public internet.
           - Does not include a managed VPN or public internet relay.
           - Do not use for emergency calls.
 

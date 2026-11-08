@@ -13,13 +13,20 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 import org.json.JSONObject;
 
 final class HttpBridge {
     private final Context context;
     private final PairingManager pairing;
-    private final ExecutorService clients = Executors.newFixedThreadPool(4);
+    private final ExecutorService clients = new ThreadPoolExecutor(4, 4, 0, TimeUnit.SECONDS,
+            new ArrayBlockingQueue<>(8));
+    private final Set<Socket> connections = ConcurrentHashMap.newKeySet();
     private volatile boolean closed;
     private ServerSocket listener;
     private Thread loop;
@@ -29,15 +36,24 @@ final class HttpBridge {
         this.pairing = PairingManager.get(context);
     }
 
-    void start() throws IOException {
-        listener = new ServerSocket();
+    void start() throws Exception {
+        listener = HostTlsIdentity.listener();
         listener.setReuseAddress(true);
         listener.bind(new InetSocketAddress(Config.PORT));
         loop = new Thread(() -> {
             while (!closed) {
                 try {
                     Socket socket = listener.accept();
-                    clients.execute(() -> serve(socket));
+                    connections.add(socket);
+                    try {
+                        clients.execute(() -> {
+                            try { serve(socket); }
+                            finally { connections.remove(socket); }
+                        });
+                    } catch (RejectedExecutionException full) {
+                        connections.remove(socket);
+                        socket.close();
+                    }
                 } catch (Exception exception) {
                     if (!closed) android.util.Log.w("PhnLnk", "Connection failed", exception);
                 }
@@ -51,12 +67,19 @@ final class HttpBridge {
         try {
             if (listener != null) listener.close();
         } catch (IOException ignored) { }
+        if (loop != null) {
+            loop.interrupt();
+            try { loop.join(1000); }
+            catch (InterruptedException stop) { Thread.currentThread().interrupt(); }
+        }
+        for (Socket socket : connections) try { socket.close(); } catch (IOException ignored) { }
+        connections.clear();
         clients.shutdownNow();
-        if (loop != null) loop.interrupt();
     }
 
     private void serve(Socket socket) {
-        try (Socket connection = socket) {
+        try (SocketDeadline deadline = SocketDeadline.after(socket, 15000);
+             Socket connection = socket) {
             connection.setSoTimeout(10000);
             InputStream input = connection.getInputStream();
             OutputStream output = connection.getOutputStream();
@@ -106,7 +129,7 @@ final class HttpBridge {
                 }
                 String origin = headers.get("origin");
                 String host = headers.get("host");
-                if (origin != null && (host == null || !origin.equals("http://" + host))) {
+                if (origin != null && (host == null || !origin.equals("https://" + host))) {
                     respond(output, 403, "Forbidden", "application/json",
                             "{\"error\":\"Cross-origin request blocked\"}", "");
                     return;
@@ -159,7 +182,7 @@ final class HttpBridge {
                 }
                 String origin = headers.get("origin");
                 String host = headers.get("host");
-                if (origin != null && (host == null || !origin.equals("http://" + host))) {
+                if (origin != null && (host == null || !origin.equals("https://" + host))) {
                     respond(output, 403, "Forbidden", "text/plain", "Cross-origin requests blocked", "");
                     return;
                 }

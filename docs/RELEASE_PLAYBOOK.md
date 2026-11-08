@@ -14,7 +14,7 @@ The source of truth for product constraints is [MAINTAINER.md](../MAINTAINER.md)
 2. Make changes on a branch or coordinated commit. Do not mix unreviewed speculative audio features with a claimed release.
 3. Run the source-level maintainer checks: `python3 tools/maintainer_check.py`.
 4. Run the actual Java voice socket tests: `bash tools/test_voice_protocol.sh`.
-5. Ensure Java 17 and Android SDK API 35 / D8 are available.
+5. Run `bash tools/test_control_tls.sh` and `python3 tools/test_audio_policy.py`. Ensure Java 17 and Android SDK API 35 / D8 are available.
 6. Build the shell helper with `bash shellprobe/build.sh`, which copies the DEX into the app assets.
 7. Compile debug with `gradle --no-daemon :app:assembleDebug`.
 8. Inspect the APK and verify the helper is bundled at `assets/phnlnk-probe.jar`.
@@ -31,7 +31,7 @@ The Android app keeps applicationId `com.richbeatty.phnlnk`.
 
 Bump both `versionCode` and `versionName` for every installable release. Update the exact version assertions in `tools/maintainer_check.py` and add a changelog entry. A new versionCode must be larger than every previously shipped signed APK.
 
-Current code after this change targets version 0.9.2 with versionCode 16. The voice protocol still uses `PHN1`; Java semantic version changes do not imply a wire protocol change.
+Current code after this change targets version 0.9.3 with versionCode 17. The voice protocol still uses `PHN1`; Java semantic version changes do not imply a wire protocol change.
 
 ## Signing key rules
 
@@ -63,7 +63,7 @@ Every release note must contain:
 - Application version and source commit.
 - Android SDK and supported device range.
 - Major implemented changes, specifying whether validated only in CI.
-- Security and network behavior, especially plaintext HTTP 47321.
+- Security and network behavior, including pinned HTTPS 47321, one-time certificate verification for saved pairings, and no plaintext fallback.
 - Explicit audio status on the physical MP01.
 - Whether the stock Android Phone app remains default.
 - Known upgrade compatibility and signing identity result.

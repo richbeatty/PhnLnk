@@ -50,7 +50,7 @@ The public Android `BluetoothHeadset` API is mainly the smartphone audio-gateway
 
 ### Option A: managed private overlay VPN, suggested first engineering milestone
 
-Install a reputable existing overlay such as Tailscale on the **two existing Android devices**. Use the host's stable overlay address or DNS name instead of its transient home Wi-Fi address. Require the VPN on both endpoints. That is extra software, not an additional device.
+Install a reputable existing overlay such as Tailscale on the **two existing Android devices**. Use the host's stable numeric overlay address (DNS names are not implemented) instead of its transient home Wi-Fi address. Require the VPN on both endpoints. That is extra software, not an additional device.
 
 Advantages:
 
@@ -63,7 +63,7 @@ Important qualifications:
 
 - The VPN does **not** grant Android call audio access. Host carrier audio remains the first gate.
 - PhnLnk does **not** currently provision or manage the VPN, discover overlay endpoints, or verify remote network state. The README must not imply this is turnkey.
-- The existing PhnLnk HTTP control channel is plaintext; a secure authenticated VPN can protect it from transport observers but does not fix all local device or token theft concerns.
+- From 0.9.3 pairing and control use pinned HTTPS even inside the VPN. Local device compromise, stolen prior tokens, Android lifecycle and overlay availability still need separate controls.
 - The user's ideal one-app setup would require an embedded secure tunnel or integrated provider onboarding later.
 - Verify mobile data, CGNAT, Wi-Fi handovers, battery policies, address stability, and that the system VPN is actually connected on both phones.
 
@@ -78,7 +78,7 @@ For a product-level one-app experience, design a small identity and rendezvous s
 
 Requirements:
 
-- User-approved account or device-pairing identity, independent from the current unencrypted HTTP bearer.
+- User-approved account or device-pairing identity, with a migration from the existing pinned-TLS bearer model to independently authenticated endpoint identities.
 - End-to-end authenticated confidentiality for **both control and voice**.
 - A relay that cannot place calls without an authorized device identity.
 - NAT traversal with UDP direct paths when possible and TURN relaying when not.
@@ -92,7 +92,7 @@ This is a larger system than the current TCP PCM proof of concept. Do not replac
 
 ### Option C: directly expose TCP 47321/47322 with port forwarding
 
-**Rejected.** The existing HTTP control/pairing channel is not TLS encrypted, contains powerful call-control authorization, and is not suitable for the public internet. Even though port 47322 encrypts media, the pairing/control channel remains a security vulnerability. CGNAT also makes direct forwarding unreliable.
+**Rejected.** Versions before 0.9.3 used plaintext HTTP and exposed pairing tokens. Pinned HTTPS now addresses that transport flaw, but does not provide public-service abuse controls, discovery, robust availability or Android lifecycle guarantees. CGNAT also makes direct forwarding unreliable. Keep both listeners private.
 
 ## Recommendation and sequence
 
@@ -110,3 +110,37 @@ A main phone at home on a private Wi-Fi network and a companion on **cellular mo
 The encryption/key exchange must cover **all call-control commands and media**, not just audio. A successful status ping or AES-GCM test is not remote calling acceptance.
 
 This is a research plan and acceptance contract, not a claim that the current source has achieved those conditions.
+
+## Concrete private-VPN integration path (0.9.3)
+
+This documents the next controlled integration, not a request for another speculative owner install. Install/sign in to Tailscale on the two existing Android devices in the same authorized tailnet and accept Android's VPN consent. Keep PhnLnk included in the tunnel; app-based exclusions can bypass it. Configure access so only the companion can reach the host's TCP 47321 and 47322. Do not include ADB or the loopback helper port. Do not forward any home router port.
+
+Use the host's stable numeric `100.64.0.0/10` address in PhnLnk's connection settings, retaining its certificate pin and token. New host QRs can prefer an overlay IPv4 address on tun/wg; this is address enumeration, not proof that a VPN is authenticated or connected. MagicDNS and IPv6 are not implemented in PhnLnk. Manually configured WireGuard can also use a permitted private IPv4 address, but requires a reachable peer configuration; bare WireGuard alone is not a NAT rendezvous or DERP substitute.
+
+Tailscale can use direct NAT-traversed connections or encrypted DERP relay fallback. Those hosted services are infrastructure, not a third device at home. Direct and relayed paths have different latency and depend on the service's current terms/availability. No account or subscription was created here. Android normally provides one active VpnService slot: another VPN may conflict. Always-on settings and host battery policy can improve availability, but must be chosen through Android and physically tested. PhnLnk cannot silently enable the VPN or Wireless Debugging.
+
+Before an audio claim, verify pinned HTTPS status/revocation first with host home Wi-Fi and companion Wi-Fi disabled using mobile data, then unrelated Wi-Fi. Verify the phone is reachable through the overlay rather than its home LAN. Record direct/relayed path and handoff behavior where available. Then separately apply the real-speech gates in [Test plan](TEST_PLAN.md). An inaccessible overlay must fail visibly without falling back to public HTTP or automatically redialing.
+
+Primary references: [Tailscale Android setup](https://tailscale.com/docs/install/android), [connection types](https://tailscale.com/docs/reference/connection-types), [DERP](https://tailscale.com/docs/reference/derp-servers), [Android split tunneling](https://tailscale.com/kb/1444/android-app-split-tunneling), [Android VPN architecture](https://developer.android.com/develop/connectivity/vpn).
+
+## Built-in WebRTC design, explicitly not implemented
+
+Keep the audio backend behind a capability/evidence gate; WebRTC does not create modem access. After the MP01 speech path is established, a versioned design should provide:
+
+| Component | Required behavior and trust boundary |
+| --- | --- |
+| Persistent device identity | Separate device signing keys (for example AndroidKeyStore P-256), public keys authenticated by physical QR pairing. Retain existing pairing until deliberate migration; revoke by device identity |
+| Rendezvous/signaling | TLS to the service plus end-to-end encrypted, endpoint-signed invitations/SDP/ICE bound to call ID, nonce, expiry and paired device keys. Authenticate the DTLS fingerprint inside that exchange so a malicious signaling server cannot substitute a peer |
+| Media | Maintained native WebRTC, DTLS-SRTP, Opus (typically 20 ms frames), adaptive jitter buffer, packet loss concealment and congestion handling. Evaluate native 48 kHz HAL adaptation separately from network framing |
+| NAT traversal | ICE with STUN candidates and authenticated TURN fallback for CGNAT/restrictive Wi-Fi. STUN alone cannot guarantee reachability; offer relay-only mode for peer-IP privacy if needed |
+| Relay credentials | Short-lived scoped TURN credentials, quotas and abuse controls. Budget bandwidth/hosting before deployment; keep TURN and signaling logs free of speech, tokens and contact data |
+| Audio processing | Validate WebRTC echo cancellation/noise processing with selected Android routes. Avoid unintentionally stacking hardware and software AEC. Voice quality and route changes require measured tests |
+| Network handoff | Connectivity callbacks, ICE restart and bounded retry/backoff; establish a new authenticated session on reconnect. Do not silently replay dial/answer or resume microphone capture without Android-authorized user action |
+| Control semantics | Authenticated call/session IDs and idempotent operation IDs; avoid duplicate dial/DTMF on retry, expire stale ringing invitations and reconcile active state after recovery |
+| Incoming calls | Optional FCM or equivalent push as an opaque wake hint, then fetch authenticated current call state. No numbers, tokens or SDP in push. Polling/Doze latency is not reliable push delivery |
+| Android lifecycle | Visible user-approved host service; companion notification opens the calling flow. Android 14 restricts background microphone foreground-service starts, so a push message is not permission to activate the mic. Explicit answering/start remains required |
+| End-of-call privacy | Stop mic, effects, playback, ICE/DTLS and helper sessions on hangup, revocation or fatal failure; host stock Phone app remains usable |
+
+The service learns connection timing and routing metadata even when signaling payloads and audio are end-to-end encrypted; TURN can observe IPs and traffic volume. Define retention and deletion policies before hosting. Use sustained network-loss, relay-only, stale invitation, key mismatch, replay and multi-client tests before deployment. No first-party signaling, TURN, FCM credential or account has been provisioned by this work.
+
+References: [WebRTC peer connections and ICE](https://webrtc.org/getting-started/peer-connections), [TURN configuration](https://webrtc.org/getting-started/turn-server), [Android foreground-service launch restrictions](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start). The engineering choice is to finish the MP01 audio and current TLS/overlay runtime gates before a large transport rewrite.

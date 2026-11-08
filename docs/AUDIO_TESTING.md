@@ -6,7 +6,7 @@ This document outlines a controlled compatibility test. The user has requested *
 
 | Signal | What is actually established | What remains unknown |
 | --- | --- | --- |
-| `READY:V2:shell UID 2000` | Local privileged helper process is running | Recording/injection access |
+| `READY:V3:shell UID 2000` | Local privileged helper process is running | Recording/injection access |
 | `CAPTURE` with sample count | An AudioRecord returned samples | Their audio source, far-end speech, intelligibility |
 | `SIGNAL_DETECTED` | PCM RMS and peak exceeded the diagnostic threshold | Whether this is the remote person or local room |
 | `INJECT` with positive written samples | The requested track accepted PCM | Whether the far-end person heard the tone |

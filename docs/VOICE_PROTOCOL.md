@@ -6,11 +6,11 @@ The actual implementation is `app/src/main/java/com/richbeatty/phnlnk/VoiceSecur
 
 | Port | Purpose | Security |
 | --- | --- | --- |
-| 47321 | Host control HTTP | Bearer authorization, **no transport encryption** |
+| 47321 | Host control HTTPS | Verified certificate pin, then bearer authorization |
 | 47322 | Companion to host media TCP | HMAC proof and AES-256-GCM encryption |
 | 47327 | Host app to local shell helper | Loopback-only TCP and a 256-bit per-install secret |
 
-Only the actual audio transport uses authenticated encryption. Do not interpret this as end-to-end encryption of the entire app, because pairing and call control on 47321 are not TLS protected.
+Both implemented network transports now encrypt their traffic. Pairing and call control on 47321 use pinned HTTPS; media remains the independent v1 HMAC/AES-GCM protocol. See [control security](CONTROL_SECURITY.md) for trust verification and migration.
 
 ## Paired secret
 
@@ -24,7 +24,7 @@ K = SHA256(UTF8(raw Base64URL pairing token))
 
 The host converts the stored 64-character hex fingerprint back into the same 32 bytes. The voice socket does not transmit the bearer token.
 
-The initial token exchange takes place over plaintext HTTP on a trusted network, so an attacker present at initial pairing is not excluded by voice encryption alone.
+From 0.9.3 the initial token exchange requires pinned HTTPS. Tokens paired by older releases might previously have crossed plaintext HTTP; TLS does not revoke a previously stolen token. Explicit host revocation and new secure pairing are needed for a suspected compromise.
 
 ## Challenge and response handshake
 

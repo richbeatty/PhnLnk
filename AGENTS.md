@@ -21,14 +21,14 @@ You are maintaining a real Android telephony project, not a disposable prototype
 - Basic call control must work without debugging. The existing stock Phone app remains default and available for emergency calls.
 - Existing paired-device identity must survive ordinary app updates and restarts.
 - Do not deliberately wake the main phone screen just to receive calls. Android's own behavior may differ.
-- Protect **both** control and media communications before describing the app as safe over public networks. Current HTTP 47321 is plaintext and MUST NOT be port forwarded.
+- Protect **both** control and media communications before describing the app as safe over public networks. Control 47321 uses pinned HTTPS from 0.9.3, including pairing. Do not reintroduce plaintext fallback or port forwarding.
 - The shell helper's readiness and a passing encryption test do not prove carrier audio. The initial VOICE_CALL capture was reported silent on the MP01. The specific MP01's alternative downlink and uplink routes remain unverified.
 - The user has asked not to be repeatedly sent experimental APKs to test. Exhaust automated and independent evidence first.
 - Do not make promises of hardware compatibility or release readiness that are not supported by tests.
 
 ## Architecture invariants
 
-- Host private call-control HTTP: TCP 47321, bearer token, presently no TLS.
+- Host private call-control HTTPS: TCP 47321, bearer token, verified certificate pin and persistent AndroidKeyStore host identity. Preserve saved tokens through explicit TLS migration.
 - Host encrypted media: TCP 47322, HMAC pairing proof and directional AES-256-GCM.
 - Shell audio helper: TCP 127.0.0.1:47327 only, separate local secret, must be shell UID 2000.
 - Audio frame: 16 kHz mono, signed 16-bit little-endian, 640 bytes for about 20 ms. No text errors after raw PCM streaming starts.
@@ -46,6 +46,8 @@ Run and inspect:
 ```bash
 python3 tools/maintainer_check.py
 bash tools/test_voice_protocol.sh
+bash tools/test_control_tls.sh
+python3 tools/test_audio_policy.py
 bash shellprobe/build.sh
 gradle --no-daemon :app:assembleDebug
 gradle --no-daemon :app:assembleRelease

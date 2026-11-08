@@ -6,14 +6,14 @@ This describes the current host control API in `HttpBridge.java` and the separat
 
 - Address: host phone private Wi-Fi or VPN interface.
 - TCP port: **47321**.
-- Transport: **HTTP without TLS**.
+- Transport: **HTTPS with a verified host certificate pin**.
 - Authentication: PhnLnk bearer token in the `Authorization` header for routes other than pairing.
 - Request output: JSON for API endpoints.
 - This is **not safe as a public internet API**. Do not port forward it.
 
 ### `GET /`
 
-Returns a bundled local web page. It is served over HTTP. This view is not evidence that voice service works.
+Returns a bundled local web page. It is served over HTTPS. Self-signed browser trust must be verified separately; the native client pins the host. This view is not evidence that voice service works.
 
 ### `POST /api/pair`
 
@@ -34,7 +34,7 @@ Example request body:
 
 The code is only an example, not an issued valid code. A successful response returns a 43-character URL-safe bearer token. The host stores only a SHA-256 hash. It rate-limits pairing attempts and expires the temporary code.
 
-The token itself crosses the network in plaintext HTTP during this step. Only use a trusted private network and do not expose the pairing listener publicly.
+From 0.9.3 the code and token cross only a verified TLS connection. QR pairing supplies the certificate pin; manual pairing requires a full-fingerprint comparison before sending the code. See [control security and migration](CONTROL_SECURITY.md). Keep the listener private.
 
 ### `GET /api/status`
 
@@ -105,7 +105,7 @@ Requires a single digit 0-9, `*` or `#` and the host's allowed in-call DTMF path
 - 431: overly large headers.
 - 404: unknown route.
 
-The server sets no-store and other browser headers, but **does not encrypt HTTP**. Tokens must not be logged or included in diagnostic screenshots.
+The server uses TLS and sets no-store and other browser headers. Native clients refuse redirects, mismatched certificates and plaintext fallback. Existing saved tokens require one explicit certificate verification after migration. Tokens must not be logged or included in diagnostic screenshots.
 
 ## Encrypted media listener, TCP 47322
 
@@ -123,6 +123,6 @@ Do not expose this port to the LAN, VPN or internet.
 
 ## Compatibility policy
 
-The HTTP API has no public version negotiation. The media handshake magic is `PHN1`. Update **both phones** when protocol structures change. When changing packet layout or HMAC labels, introduce explicit protocol negotiation before shipping. Error codes are diagnostic, not public guarantees.
+The JSON API has no public version negotiation. Version 0.9.3 changes port 47321 from HTTP to HTTPS; both apps must be updated and the host identity verified once, retaining Android saved pairing tokens. The media handshake magic is `PHN1`. Update **both phones** when protocol structures change. When changing packet layout or HMAC labels, introduce explicit protocol negotiation before shipping. Error codes are diagnostic, not public guarantees.
 
 For security review see [Security](SECURITY.md).

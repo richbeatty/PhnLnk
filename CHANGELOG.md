@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.3, verified control identity, helper bootstrap and production relay tests
+
+- Replaced plaintext control/pairing with HTTPS on 47321, a persistent AndroidKeyStore host certificate, QR/full-fingerprint verification and fail-closed pin checks. Saved Android tokens migrate explicitly without uninstalling or new ADB pairing; both apps must update. Browser HTTPS trust/origin changes are documented.
+- Fixed helper ActivityThread/Handler startup using a prepared and pumped Looper and cached shell context. Helper V3 replaces older processes while retaining approved Android identity.
+- Fixed relay startup errors being lost when try-with-resources closed the remote socket before the error send.
+- Serialized media sequence allocation/encryption/write, bounded authentication workers, acquired single-session ownership after authorization, and tracked pending sockets for revocation and shutdown.
+- Added bounded HTTPS workers/queue and absolute socket deadlines. Diagnostics and streaming share the helper audio-operation gate.
+- Improved companion connect cancellation, blocked overlapping session scheduling, stopped blocking audio devices on shutdown and guarded API 31 routing for Android 11. Android runtime validation remains open.
+- Expanded actual production protocol tests to 22, added 9 production relay cases and 5 TLS cases; added a four-test offline audio-policy inspector.
+- Investigated pinned Android 14 sources and Minimal's published MP01/MT6789 device policy, including fixed-48k/native format constraints and differing policy variants; documented external MediaTek direct-mode reports, HFP restrictions, private VPN setup and WebRTC requirements.
+- Kept applicationId and release signing configuration; versionCode 17. No permanent key was accessed, no release published, no speculative APK requested. **Actual MP01 two-way speech, AndroidKeyStore migration and physical VPN/background behavior remain unverified.**
+
 ## v0.9.2, EOF diagnostics, regression tests and complete developer documentation
 
 - Fixed source-level voice helper early close during Android audio initialization by sending an explicit pre-READY `ERROR:AUDIO_INIT` when possible.

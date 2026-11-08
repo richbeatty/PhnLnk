@@ -1,12 +1,11 @@
 package com.richbeatty.phnlnk;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
+import javax.net.ssl.HttpsURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -23,7 +22,7 @@ final class RemoteClient {
         if (!isPaired(c)) throw new IllegalStateException("Pair this device first");
         String normalized = normalizeHost(newAddress);
         boolean saved = c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
-                .putString("host", "http://" + normalized + ":" + Config.PORT).commit();
+                .putString("host", "https://" + normalized + ":" + Config.PORT).commit();
         if (!saved) throw new IllegalStateException("Could not save the new address");
     }
 
@@ -37,15 +36,34 @@ final class RemoteClient {
 
     static String voiceToken(Context c) { return token(c); }
 
+    static boolean isTrusted(Context c) {
+        return c.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+                .getString("tls_pin", "").matches("[0-9a-f]{64}");
+    }
+
+    static void trustSavedHost(Context c, String pin) throws Exception {
+        if (!isPaired(c)) throw new IllegalStateException("Pair this device first");
+        String host = normalizeHost(address(c));
+        if (!c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
+                .putString("host", "https://" + host + ":" + Config.PORT)
+                .putString("tls_pin", ControlTls.requirePin(pin)).commit())
+            throw new IllegalStateException("Could not save the verified main phone identity");
+    }
+
+    static String discoverCandidate(String host) throws Exception {
+        return ControlTls.discoverUntrustedFingerprint(normalizeHost(host), Config.PORT);
+    }
+
     static void forget(Context c) {
         c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
-                .remove("host").remove("token").apply();
+                .remove("host").remove("token").remove("tls_pin").apply();
     }
 
     static String normalizeHost(String raw) {
         if (raw == null) throw new IllegalArgumentException("Enter the host phone's Wi-Fi address");
         String s = raw.trim().toLowerCase(Locale.ROOT);
         if (s.startsWith("http://")) s = s.substring(7);
+        if (s.startsWith("https://")) s = s.substring(8);
         if (s.endsWith("/")) s = s.substring(0, s.length() - 1);
         if (s.endsWith(":47321")) s = s.substring(0, s.length() - 6);
         String[] octets = s.split("\\.", -1);
@@ -67,25 +85,26 @@ final class RemoteClient {
         return parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3];
     }
 
-    static void pair(Context c, String ip, String code) throws Exception {
+    static void pair(Context c, String ip, String code, String verifiedPin) throws Exception {
+        String pin = ControlTls.requirePin(verifiedPin);
         String safeIp = normalizeHost(ip);
         if (code == null || !code.matches("[0-9]{6}"))
             throw new IllegalArgumentException("Enter the six-digit pairing code");
         JSONObject input = new JSONObject().put("code", code);
-        JSONObject result = request("http://" + safeIp + ":" + Config.PORT,
-                null, "POST", "/api/pair", input);
+        JSONObject result = request("https://" + safeIp + ":" + Config.PORT,
+                null, pin, "POST", "/api/pair", input);
         String token = result.optString("token", "");
         if (!token.matches("[A-Za-z0-9_-]{43}"))
             throw new IllegalStateException("The host did not return a valid pairing key");
         if (!c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
-                .putString("host", "http://" + safeIp + ":" + Config.PORT)
-                .putString("token", token).commit()) {
+                .putString("host", "https://" + safeIp + ":" + Config.PORT)
+                .putString("token", token).putString("tls_pin", pin).commit()) {
             throw new IllegalStateException("Could not remember this phone");
         }
     }
 
     static JSONObject status(Context c) throws Exception {
-        return request(address(c), token(c), "GET", "/api/status", null);
+        return request(address(c), token(c), pin(c), "GET", "/api/status", null);
     }
 
     static JSONObject call(Context c, String action, String number) throws Exception {
@@ -95,15 +114,24 @@ final class RemoteClient {
         JSONObject body = new JSONObject();
         if ("dial".equals(action)) body.put("number", number == null ? "" : number);
         if ("dtmf".equals(action)) body.put("digit", number == null ? "" : number);
-        return request(address(c), token(c), "POST", "/api/" + action, body);
+        return request(address(c), token(c), pin(c), "POST", "/api/" + action, body);
     }
 
-    private static JSONObject request(String host, String token, String method,
+    private static String pin(Context c) {
+        return ControlTls.requirePin(c.getSharedPreferences(STORE, Context.MODE_PRIVATE)
+                .getString("tls_pin", ""));
+    }
+
+    private static JSONObject request(String host, String token, String pin, String method,
                                       String path, JSONObject body) throws Exception {
         if (host == null || host.isEmpty())
             throw new IllegalStateException("Connect to a phone first");
-        HttpURLConnection connection = (HttpURLConnection)
+        if (!host.startsWith("https://"))
+            throw new IllegalStateException("Open PhnLnk to verify the main phone's encrypted connection");
+        HttpsURLConnection connection = (HttpsURLConnection)
                 new URL(host + path).openConnection();
+        connection.setSSLSocketFactory(ControlTls.pinnedContext(pin).getSocketFactory());
+        connection.setHostnameVerifier((hostname, session) -> ControlTls.matches(pin, session));
         connection.setConnectTimeout(4000);
         connection.setReadTimeout(4000);
         connection.setInstanceFollowRedirects(false);

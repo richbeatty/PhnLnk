@@ -51,6 +51,9 @@ public final class VoiceSessionService extends Service {
     private volatile boolean running;
     private volatile Socket activeSocket;
     private volatile AudioManager audioManager;
+    private volatile AudioRecord activeMicrophone;
+    private volatile AudioTrack activePlayback;
+    private boolean sessionScheduled;
 
     static boolean active() {return active;}
     static boolean muted() {return muted;}
@@ -97,13 +100,14 @@ public final class VoiceSessionService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        if(running)return START_NOT_STICKY;
+        if(sessionScheduled)return START_NOT_STICKY;
         if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) {
             state="Microphone permission is needed on this device";
             stopSelf();
             return START_NOT_STICKY;
         }
         running=true;
+        sessionScheduled=true;
         state="Connecting encrypted voice...";
         Intent open=new Intent(this,ClientActivity.class);
         PendingIntent tap=PendingIntent.getActivity(this,415,open,
@@ -120,10 +124,16 @@ public final class VoiceSessionService extends Service {
                         android.R.drawable.ic_menu_close_clear_cancel,"Disconnect voice",stop).build())
                 .setOngoing(true)
                 .build();
-        if(Build.VERSION.SDK_INT>=34)
-            startForeground(NOTICE,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
-        else startForeground(NOTICE,notification);
-        worker.execute(this::connectAndStream);
+        try {
+            if(Build.VERSION.SDK_INT>=34)
+                startForeground(NOTICE,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+            else startForeground(NOTICE,notification);
+            worker.execute(this::connectAndStream);
+        } catch (Exception error) {
+            state="Android could not start microphone service: "+safe(error);
+            shutdown();
+            stopSelf();
+        }
         return START_NOT_STICKY;
     }
 
@@ -141,9 +151,10 @@ public final class VoiceSessionService extends Service {
             phase="CONNECT_HOST_PRIVATE_NETWORK";
             String host=new URL(RemoteClient.address(this)).getHost();
             socket=new Socket();
+            activeSocket=socket;
             socket.connect(new InetSocketAddress(host,VoiceSecureTransport.PORT),5000);
             socket.setTcpNoDelay(true);
-            activeSocket=socket;
+            if(!running)return;
             phase="VOICE_AUTH_HANDSHAKE";
             VoiceSecureTransport.Session wire=VoiceSecureTransport.onClient(this,socket);
             phase="WAIT_HOST_AUDIO_BACKEND";
@@ -154,6 +165,7 @@ public final class VoiceSessionService extends Service {
                         banner.substring("PHNLNK:ERROR:".length()) :
                         "Main phone did not start the voice bridge");
             String method=banner.substring("PHNLNK:READY:".length());
+            if(!running)return;
             // Initialization may take longer than one voice packet, but
             // steady-state media should not stall indefinitely.
             socket.setSoTimeout(15000);
@@ -181,6 +193,7 @@ public final class VoiceSessionService extends Service {
                     .setAudioSource(MediaRecorder.AudioSource.VOICE_COMMUNICATION)
                     .setAudioFormat(input)
                     .setBufferSizeInBytes(Math.max(micMin*2,FRAME*12)).build();
+            activeMicrophone=mic;
             if(mic.getState()!=AudioRecord.STATE_INITIALIZED)
                 throw new IllegalStateException("Android could not initialize microphone");
             if(AcousticEchoCanceler.isAvailable()) {
@@ -198,8 +211,10 @@ public final class VoiceSessionService extends Service {
                     .setAudioFormat(output)
                     .setBufferSizeInBytes(Math.max(outMin*2,FRAME*12))
                     .setTransferMode(AudioTrack.MODE_STREAM).build();
+            activePlayback=speakerTrack;
             if(speakerTrack.getState()!=AudioTrack.STATE_INITIALIZED)
                 throw new IllegalStateException("Android could not initialize companion speaker");
+            if(!running)return;
             mic.startRecording();
             speakerTrack.play();
             phase="VOICE_STREAMING";
@@ -290,12 +305,15 @@ public final class VoiceSessionService extends Service {
             Log.w(TAG,"Companion voice failed at "+phase,error);
         } finally {
             shutdown();
+            activeMicrophone=null;
+            activePlayback=null;
             if(aec!=null)aec.release();
             if(suppressor!=null)suppressor.release();
             if(mic!=null){try{mic.stop();}catch(Exception ignored){}mic.release();}
             if(speakerTrack!=null){try{speakerTrack.stop();}catch(Exception ignored){}speakerTrack.release();}
             if(audioManager!=null) {
-                try{audioManager.clearCommunicationDevice();}catch(Exception ignored){}
+                if(Build.VERSION.SDK_INT>=31)
+                    try{audioManager.clearCommunicationDevice();}catch(Exception ignored){}
                 try{audioManager.setMode(oldMode);}catch(Exception ignored){}
             }
             active=false;
@@ -306,6 +324,10 @@ public final class VoiceSessionService extends Service {
     private void setRoute() {
         AudioManager audio=audioManager;
         if(audio==null)return;
+        if(Build.VERSION.SDK_INT<31) {
+            audio.setSpeakerphoneOn(speaker);
+            return;
+        }
         int selected=speaker?AudioDeviceInfo.TYPE_BUILTIN_SPEAKER:
                 AudioDeviceInfo.TYPE_BUILTIN_EARPIECE;
         for(AudioDeviceInfo device:audio.getAvailableCommunicationDevices()){
@@ -335,6 +357,12 @@ public final class VoiceSessionService extends Service {
         Socket socket=activeSocket;
         activeSocket=null;
         if(socket!=null)try{socket.close();}catch(Exception ignored){}
+        // AudioRecord/AudioTrack blocking calls do not unblock merely because
+        // the network socket closed. Stop them before joining media workers.
+        AudioRecord mic=activeMicrophone;
+        if(mic!=null)try{mic.stop();}catch(Exception ignored){}
+        AudioTrack playback=activePlayback;
+        if(playback!=null)try{playback.pause();playback.flush();}catch(Exception ignored){}
     }
 
     @Override public void onDestroy() {

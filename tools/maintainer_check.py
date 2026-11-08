@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 16,
-        "The versionCode must be at least 16 and increase on subsequent releases")
-require("versionName '0.9.2'" in gradle,
+require(match is not None and int(match.group(1)) >= 17,
+        "The versionCode must be at least 17 and increase on subsequent releases")
+require("versionName '0.9.3'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -193,6 +193,25 @@ require("VOICE_HANDSHAKE_CLOSED" in voice_transport and
         "VOICE_MEDIA_CLOSED" in voice_transport and
         "VOICE_MEDIA_TIMEOUT" in voice_transport,
         "Do not regress to bare EOFExceptions")
+require("Looper.prepareMainLooper()" in helper and "Looper.loop()" in helper and
+        helper.index("Looper.prepareMainLooper()") < helper.index("daemon.frameworkContext = createShellContext()"),
+        "app_process helper must create framework context on a prepared, pumped Looper")
+require('READY:V3:' in helper and 'READY:V3:' in host_adb and 'READY:V3:' in audio_service,
+        "Replace old helpers without discarding saved Android debugging identity")
+require('android:usesCleartextTraffic="false"' in manifest,
+        "Control migration must fail closed without cleartext HTTP fallback")
+tls = content("app/src/main/java/com/richbeatty/phnlnk/ControlTls.java")
+remote = content("app/src/main/java/com/richbeatty/phnlnk/RemoteClient.java")
+bridge = content("app/src/main/java/com/richbeatty/phnlnk/HttpBridge.java")
+identity = content("app/src/main/java/com/richbeatty/phnlnk/HostTlsIdentity.java")
+require("HostTlsIdentity.listener()" in bridge and "pinnedContext(pin)" in remote and
+        "setHostnameVerifier" in remote and 'host.startsWith("https://")' in remote,
+        "Both listener and client must require TLS with a verified host identity")
+require("AndroidKeyStore" in identity and "checkValidity()" in tls and
+        "MessageDigest.isEqual" in tls and "trustSavedHost" in remote,
+        "Preserve persistent TLS identity, strict pin checks and explicit saved-token migration")
+require("test_control_tls.sh" in workflow and "test_audio_policy.py" in workflow,
+        "CI must run actual TLS and policy analysis tests")
 require("Voice failed at " in voice_companion and
         "RemoteClient.status(this)" in voice_companion,
         "Companion must name failure phase and inspect host diagnostic")
@@ -218,6 +237,9 @@ for required_doc in [
     "docs/EOF_INCIDENT_2026-11-08.md",
     "docs/PHONE_LINK_AND_REMOTE_NETWORKS.md",
     "docs/CODER_AGENT_HANDOFF_PROMPT.md",
+    "docs/CONTROL_SECURITY.md",
+    "docs/MP01_AUDIO_FEASIBILITY.md",
+    "docs/ENGINEERING_AUDIT.md",
 ]:
     require(len(content(required_doc)) >= 1500,
             f"Missing or incomplete required project documentation: {required_doc}")

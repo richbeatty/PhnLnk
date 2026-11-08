@@ -70,3 +70,10 @@ Attribution and vendor HAL behavior are separate concerns. Fixing attribution ma
 | Other vendor phones | Varies | Open-source gateways show that certain privileged audio paths can work on selected firmware | Not transferable to MP01 without evidence |
 
 This project must not convert an unrelated device's successful call test into a success claim for the MP01. See [Test plan](TEST_PLAN.md) for the proof required.
+
+
+## 0.9.3 source investigation
+
+Helper V3 prepares and pumps a framework Looper and caches its shell context before socket workers run. The prior worker-side `systemMain()` could fail during Handler construction before audio initialization. This repair does not prove the MP01 HAL path. Diagnostics and streaming now share one audio-operation ownership gate.
+
+Minimal's public MT6789 policy declares incall playback at 44.1/48 kHz stereo, differing from the current helper's 16 kHz mono request. Another common policy has no software playback mix into Telephony Tx. The installed policy and HAL conversions remain unknown. `AUDIO_DEVICE_IN_VOICE_CALL` is a native alias for TELEPHONY_RX, not proof of an absent Rx port. See the [MP01 feasibility report](MP01_AUDIO_FEASIBILITY.md) for pinned manufacturer and Android sources, external direct-mode evidence and the conditional OEM requirement change.

@@ -16,8 +16,8 @@ These three capabilities have different success criteria. The first two may fail
 | --- | --- | --- |
 | `MainActivity` | Either device | Select host or companion role |
 | `HostActivity` | Host app | Pair device, manage host, display connection and audio setup |
-| `GatewayService` | Host app | Foreground lifetime of control HTTP and voice listener |
-| `HttpBridge` | Host app | Bearer-authenticated HTTP interface on port 47321 |
+| `GatewayService` | Host app | Foreground lifetime of control HTTPS and voice listener |
+| `HttpBridge` | Host app | Pinned HTTPS and bearer-authenticated interface on port 47321 |
 | `CallController` | Host app | Dial, answer, hangup, coarse call status and DTMF availability |
 | `PairingManager` | Host app | Pairing code, saved token hashes, revocation and voice proof lookup |
 | `HostAudioActivity` | Host app | Guided debugging setup, audio capture and injection diagnostics |
@@ -28,7 +28,7 @@ These three capabilities have different success criteria. The first two may fail
 | `VoiceRelayServer` | Host app | TCP 47322 voice session, active-call check, shell bridge |
 | `VoiceSecureTransport` | Both apps | HMAC challenge-response, AES-GCM and sequence checks |
 | `ClientActivity` | Companion | Dialer, contacts, favorites, recents and voice controls |
-| `RemoteClient` | Companion | Existing HTTP pairing, status and action requests |
+| `RemoteClient` | Companion | Pinned HTTPS pairing, saved-token migration, status and action requests |
 | `CompanionService` | Companion | Polling and incoming-call notification |
 | `VoiceSessionService` | Companion | Foreground mic, encrypted PCM and speaker output |
 | `StartOnBootReceiver` | Either app | Best-effort service recovery after reboot |
@@ -48,7 +48,7 @@ These three capabilities have different success criteria. The first two may fail
   | Local secret + PCM on 127.0.0.1:47327                |
   |                   |                 |                |
   | VoiceRelayServer / TCP 47322 / authenticated GCM     |
-  | HttpBridge / TCP 47321 / authenticated HTTP, no TLS  |
+  | HttpBridge / TCP 47321 / pinned HTTPS + bearer  |
   +-------------------+-----------------+----------------+
                       |                 |
                   Trusted LAN or independently set up VPN
@@ -59,11 +59,11 @@ These three capabilities have different success criteria. The first two may fail
   +------------------------------------------------------+
 ```
 
-The shell helper never listens on the Wi-Fi or VPN interface. It is bound only to 127.0.0.1. The media and HTTP listeners are separate, and the existing HTTP listener is still plaintext. Never forward either port to the public internet.
+The shell helper never listens on the Wi-Fi or VPN interface. It is bound only to 127.0.0.1. The media and HTTPS listeners are separate. HTTPS uses a persistent per-install host certificate, verified by QR or an explicit full-fingerprint comparison; see [control security](CONTROL_SECURITY.md). Never forward either port to the public internet.
 
 ## Ordinary call lifecycle
 
-1. The companion pairs with the host using the host's temporary six-digit PhnLnk pairing code, which is separate from the Android debugging pairing code.
+1. The companion pairs with the host over pinned HTTPS using the host's temporary six-digit PhnLnk pairing code, which is separate from the Android debugging pairing code.
 2. The companion sends `POST /api/dial` or `POST /api/answer` using the saved bearer token.
 3. The host checks authorization and uses the stock Android Telecom service.
 4. The host continues using its actual SIM and its default Phone app.
@@ -79,8 +79,8 @@ The user is not forced to make PhnLnk the default Phone app. Standard telecom DT
 2. Android issues a pairing code, and the user approves pairing. PhnLnk stores its own ADB identity.
 3. `AudioAccessService` probes the helper; if missing, `HostAdb` attempts to connect to local adbd.
 4. `HostAdb` uses the persistent `exec:sh` marker protocol because short-lived `shell:` streams were implicated in an upstream library close-race.
-5. The bundled DEX helper is started with `app_process`, checks UID 2000 and opens its loopback server.
-6. PING returning `READY:V2` proves shell helper availability only.
+5. The bundled DEX helper starts with `app_process`, checks UID 2000, prepares its main Looper and caches its shell-attributed context there. A separate thread accepts loopback sockets while the main event loop handles framework callbacks.
+6. PING returning `READY:V3` proves shell helper availability only.
 
 Android may turn Wireless Debugging off on reboot or network changes. A normal app cannot silently enable it again. The identity may remain paired while debugging is off.
 

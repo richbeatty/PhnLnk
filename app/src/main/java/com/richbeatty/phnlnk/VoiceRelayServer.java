@@ -14,13 +14,18 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Set;
 
 /**
  * Single-session, authenticated AES-GCM voice transport on trusted private LAN.
  * The shell daemon remains loopback-only. Raw PCM is NEVER served from HTTP.
- * The HTTP call-control listener is separate and must not be exposed online.
+ * The pinned HTTPS call-control listener is separate and remains private.
  */
 final class VoiceRelayServer {
     private static final String TAG="PhnLnkVoice";
@@ -30,7 +35,9 @@ final class VoiceRelayServer {
     private static volatile String lastError="No voice attempt yet";
     private static volatile long lastErrorAt;
     private final Context context;
-    private final ExecutorService clients=Executors.newCachedThreadPool();
+    private final ExecutorService clients=new ThreadPoolExecutor(0,4,30,TimeUnit.SECONDS,
+            new SynchronousQueue<>());
+    private final Set<Socket> connections=ConcurrentHashMap.newKeySet();
     private volatile boolean closed;
     private volatile boolean streaming;
     private volatile String failure="Not started";
@@ -59,7 +66,9 @@ final class VoiceRelayServer {
         VoiceRelayServer server=current;
         if(server!=null) {
             server.streaming=false;
-            closeSilently(server.activeClient);
+            // Includes sockets still authenticating, so revocation cannot race
+            // a completed key lookup before activeClient is published.
+            for(Socket socket:server.connections)closeSilently(socket);
             closeSilently(server.activeShell);
         }
     }
@@ -78,14 +87,15 @@ final class VoiceRelayServer {
             while(!closed) {
                 try {
                     Socket socket=listener.accept();
-                    if(!BUSY.compareAndSet(false,true)){
-                        fail("HOST_BUSY: Another companion voice connection is already active.");
-                        socket.close();continue;
+                    connections.add(socket);
+                    try {
+                        clients.execute(() -> {
+                            try {serve(socket);}
+                            finally {connections.remove(socket);}
+                        });
+                    }catch(RejectedExecutionException full){
+                        connections.remove(socket);socket.close();
                     }
-                    clients.execute(() -> {
-                        try {serve(socket);}
-                        finally {BUSY.set(false);}
-                    });
                 }catch(Exception error){
                     if(!closed)Log.w(TAG,"Voice connection failed",error);
                 }
@@ -96,11 +106,16 @@ final class VoiceRelayServer {
 
     void close() {
         closed=true;
-        closeSilently(activeClient);
-        closeSilently(activeShell);
         closeSilently(listener);
+        if(loop!=null) {
+            loop.interrupt();
+            try {loop.join(1000);}catch(InterruptedException stop){Thread.currentThread().interrupt();}
+        }
+        for(Socket socket:connections)closeSilently(socket);
+        closeSilently(activeShell);
         clients.shutdownNow();
-        if(loop!=null)loop.interrupt();
+        try {clients.awaitTermination(1,TimeUnit.SECONDS);}
+        catch(InterruptedException stop){Thread.currentThread().interrupt();}
         streaming=false;
         stage("STOPPED");
         if(current==this)current=null;
@@ -128,15 +143,26 @@ final class VoiceRelayServer {
     }
 
     private void serve(Socket remote) {
-        activeClient=remote;
         Socket helper=null;
         VoiceSecureTransport.Session session=null;
         boolean readySent=false;
+        boolean ownsSession=false;
         String phase="AUTH_HANDSHAKE";
-        try (Socket socket=remote) {
+        // Keep the socket open through the catch block: try-with-resources used
+        // to close it BEFORE we could send an authenticated startup ERROR.
+        try {
+            Socket socket=remote;
             socket.setTcpNoDelay(true);
-            stage(phase);
-            session=VoiceSecureTransport.onHost(context,socket);
+            try(SocketDeadline deadline=SocketDeadline.after(socket,9000)) {
+                session=VoiceSecureTransport.onHost(context,socket);
+            }
+            if(!BUSY.compareAndSet(false,true)) {
+                session.send(message("ERROR:HOST_BUSY:Another voice session is active"));
+                return;
+            }
+            ownsSession=true;
+            activeClient=remote;
+            if(closed || remote.isClosed())return;
             phase="CHECK_ACTIVE_CALL";
             stage(phase);
             if(!isCallActive()) {
@@ -231,20 +257,27 @@ final class VoiceRelayServer {
             closeSilently(socket);closeSilently(helper);
             down.join(800);up.join(800);
         }catch(Exception error){
-            failure=phase+": "+safe(error);
-            fail(failure);
+            String detail=phase+": "+safe(error);
+            if(ownsSession || !BUSY.get()) {
+                failure=detail;
+                fail(detail);
+            }
             Log.w(TAG,"Voice relay failed at "+phase,error);
             // A startup failure gets one authenticated error frame. Never
             // append a second control frame once streaming has started.
             if(session!=null && !readySent) {
-                try{session.send(message("ERROR:"+failure));}catch(Exception ignored){}
+                try{session.send(message("ERROR:"+detail));}catch(Exception ignored){}
             }
         }finally{
-            streaming=false;
+            closeSilently(remote);
             closeSilently(helper);
-            activeShell=null;
-            activeClient=null;
-            stage("LISTENING");
+            if(ownsSession) {
+                streaming=false;
+                activeShell=null;
+                activeClient=null;
+                BUSY.set(false);
+                stage(closed?"STOPPED":"LISTENING");
+            }
         }
     }
 

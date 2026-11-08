@@ -27,7 +27,7 @@ If the main phone's IP changes, the companion can update the saved address witho
 ## Companion setup
 
 1. Open PhnLnk on the second Android device and choose companion mode.
-2. Scan the host's pairing code or enter the host IP and six-digit PhnLnk code.
+2. Open the host QR on the companion, then tap **Connect phone**. The QR includes the TLS certificate pin. For manual IP/code entry, compare all fingerprint groups with the main phone before confirming; no pairing data is sent before verification.
 3. Wait for a successful pairing. The device saves a bearer token privately.
 4. Enable incoming-call alerts if desired and allow Android notifications.
 5. Use the dialer, Contacts, Favorites and Recents tabs. The contacts are read from the companion itself.
@@ -51,7 +51,7 @@ The app cannot silently turn Android debugging on after Android disables it. Re-
 
 ## Experimental live audio workflow
 
-A successful media protocol connection requires a real active cellular call, a running V2 shell helper, compatible Android audio backends and an authorized companion.
+A successful media protocol connection requires a real active cellular call, a running V3 shell helper, compatible Android audio backends and an authorized companion.
 
 1. On the main phone, with a consenting other participant, start a real cellular call using the normal Phone app or companion call controls.
 2. Keep Guided audio setup enabled and the helper connected. Review the selected capture and uplink methods.
@@ -66,7 +66,7 @@ A READY indication is not a successful call test. If actual speech is absent, do
 
 ## Networks and away-from-home operation
 
-The prototype does not provide a public internet relay or configure a VPN. The voice port uses AES-GCM, but the separate control HTTP port does not use TLS. For an away-from-home private connection, the user would need to provision a secure VPN on both devices using an independent service and verify routing.
+The prototype does not provide a public internet relay or configure a VPN. The voice port uses AES-GCM; pairing and control use pinned HTTPS. Both apps must be updated, and an existing Android companion verifies the host once while retaining its saved token. For an away-from-home private connection, the user would need to provision a secure VPN on both devices using an independent service and verify routing.
 
 Do not port forward TCP 47321, 47322 or the Android debugging port to the internet.
 
@@ -82,5 +82,7 @@ Uninstalling removes private app storage and may remove saved PhnLnk pairings. W
 ## Emergency calls
 
 PhnLnk is not tested, certified, or supported as an emergency dialer. Keep the original Phone app available for emergency calling. Remote control and voice tunneling can fail when the network, service or helper is unavailable.
+
+Existing saved Android pairings are preserved during the HTTPS upgrade. Open the companion to compare the main phone's Security fingerprint once. An old app speaking HTTP cannot connect to the upgraded TLS listener. There is no fallback to plaintext. See [Control security](CONTROL_SECURITY.md).
 
 For reliability checks and unresolved compatibility, see [Test plan](TEST_PLAN.md) and [Troubleshooting](TROUBLESHOOTING.md).

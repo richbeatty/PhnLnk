@@ -40,7 +40,7 @@ These are durable explanations of decisions that affect the owner's requirements
 
 **Reason:** Audio PCM is especially sensitive. Authentication and confidentiality are necessary even on a private LAN.
 
-**Consequence:** This is not complete app encryption. Original pairing and HTTP call controls on 47321 remain plaintext. Public port forwarding is prohibited. Adding TLS or equivalent to the control plane remains open.
+**Consequence at 0.9.0:** Media encryption did not protect plaintext pairing/control. Superseded by ADR 010: 0.9.3 adds pinned HTTPS on 47321, while public port forwarding remains prohibited.
 
 ## ADR 006: Preserve a strict distinction between implemented and verified
 
@@ -70,7 +70,7 @@ These are durable explanations of decisions that affect the owner's requirements
 
 **Decision:** Support only trusted private networks or an independently configured authenticated VPN for the existing prototype. Do not expose raw host ports publicly.
 
-**Reason:** Initial pairing and call-control HTTP are not TLS protected. A public relay would amplify unauthorized calling risk.
+**Reason at the original decision:** Pairing and control were plaintext. With pinned HTTPS in 0.9.3 the remaining public-service and lifecycle controls are still incomplete, so a public relay remains deferred.
 
 **Consequence:** Away-from-home convenience is a product requirement not yet solved by the current prototype. Secure transport design and test work remain open.
 
@@ -83,3 +83,12 @@ These are durable explanations of decisions that affect the owner's requirements
 **Consequence:** Code changes should update their corresponding documents. No undocumented permission escalation, public network listener, protocol change or signing process is acceptable.
 
 See [Maintainer workflow](MAINTAINER_WORKFLOW.md) for update policy.
+
+
+## ADR 010: Require pinned HTTPS without discarding saved Android pairing
+
+**Decision:** 0.9.3 serves HTTPS on the existing 47321 port, with a persistent AndroidKeyStore host certificate and explicit QR/full-fingerprint verification. Existing tokens migrate only after verification. No plaintext fallback.
+
+**Reason:** Encrypt initial code/token exchange and subsequent control without trusting arbitrary LAN certificates or silently breaking pairing identity. The APK signing key is unrelated and unchanged.
+
+**Consequence:** Both apps must update. Existing Android companions verify once; background polling fails closed until then. Browser origins change and may need re-pairing. Native TLS helpers are JVM tested; AndroidKeyStore and migration UI still need physical-device acceptance. See [control security](CONTROL_SECURITY.md).

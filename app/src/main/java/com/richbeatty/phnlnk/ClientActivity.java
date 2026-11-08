@@ -57,6 +57,7 @@ public final class ClientActivity extends Activity {
     private volatile boolean dtmfReady;
     private volatile String activeState = "unknown";
     private volatile boolean polling;
+    private String pairingPin = "";
 
     static final class Contact {
         final String name;
@@ -72,10 +73,12 @@ public final class ClientActivity extends Activity {
                 && "pair".equals(link.getHost())) {
             String ip = link.getQueryParameter("host");
             String code = link.getQueryParameter("code");
+            String suppliedPin = link.getQueryParameter("fingerprint");
+            pairingPin = suppliedPin == null ? "" : suppliedPin;
             showPair(ip == null ? "" : ip, code == null ? "" : code);
-            if (ip != null && code != null) connect(ip, code);
         } else if (RemoteClient.isPaired(this)) {
             showDialer();
+            if (!RemoteClient.isTrusted(this)) verifySavedHost();
         } else {
             showPair("", "");
         }
@@ -136,7 +139,7 @@ public final class ClientActivity extends Activity {
         clearScreen();
         LinearLayout card = PhoneUi.card(this);
         card.addView(PhoneUi.label(this,"Connect a phone",25,PhoneUi.INK,true));
-        card.addView(PhoneUi.label(this,"Scan the code on your main phone, or enter its Wi-Fi address and six-digit pairing code.",14,PhoneUi.MUTED,false),
+        card.addView(PhoneUi.label(this,"Scan the QR on your main phone, or enter its private address and pairing code. Manual setup also asks you to compare its security fingerprint.",14,PhoneUi.MUTED,false),
                 PhoneUi.margins(this,9,16));
         card.addView(PhoneUi.label(this,"PHONE ADDRESS",12,PhoneUi.MUTED,true));
         EditText address = input("192.168.1.10", InputType.TYPE_CLASS_TEXT);
@@ -158,10 +161,50 @@ public final class ClientActivity extends Activity {
     }
 
     private void connect(String ip, String code) {
+        if (pairingPin.matches("[0-9a-f]{64}")) connectWithPin(ip, code, pairingPin);
+        else verifyCertificate(ip, pin -> connectWithPin(ip, code, pin));
+    }
+
+    private void verifySavedHost() {
+        final String expectedAddress = RemoteClient.address(this);
+        verifyCertificate(expectedAddress, pin -> worker.execute(() -> {
+            try {
+                // Do not attach an identity to a different pairing if settings changed meanwhile.
+                if (!expectedAddress.equals(RemoteClient.address(this))) return;
+                RemoteClient.trustSavedHost(this, pin);
+                runOnUiThread(this::fetchStatus);
+            } catch (Exception error) {
+                runOnUiThread(() -> { if (note != null) note.setText(error.getMessage()); });
+            }
+        }));
+    }
+
+    private void verifyCertificate(String host, java.util.function.Consumer<String> verified) {
+        if (note != null) note.setText("Reading main phone's certificate. No pairing data sent yet...");
+        worker.execute(() -> {
+            try {
+                String candidate = RemoteClient.discoverCandidate(host);
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    new AlertDialog.Builder(this)
+                            .setTitle("Verify main phone")
+                            .setMessage("Compare ALL groups with the Security fingerprint shown on your main phone in PhnLnk. Continue only if they match:\n\n"
+                                    + ControlTls.displayPin(candidate))
+                            .setNegativeButton("Cancel", null)
+                            .setPositiveButton("Matches main phone", (dialog, which) -> verified.accept(candidate))
+                            .show();
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> { if (note != null) note.setText("Cannot verify host: " + error.getMessage()); });
+            }
+        });
+    }
+
+    private void connectWithPin(String ip, String code, String pin) {
         if (note != null) note.setText("Connecting...");
         worker.execute(() -> {
             try {
-                RemoteClient.pair(this, ip, code);
+                RemoteClient.pair(this, ip, code, pin);
                 runOnUiThread(() -> {
                     showDialer();
                     fetchStatus();
@@ -258,14 +301,13 @@ public final class ClientActivity extends Activity {
 
         alerts=secondary("Incoming call alerts",this::toggleAlerts);
         settingsPanel.addView(alerts,PhoneUi.margins(this,0,9));
+        settingsPanel.addView(secondary("Verify main phone security fingerprint", this::verifySavedHost),
+                PhoneUi.margins(this,0,9));
         settingsPanel.addView(secondary("Update main phone's private address", () -> {
             EditText field=input("Main phone Wi-Fi IP",InputType.TYPE_CLASS_TEXT);
             String current=RemoteClient.address(this);
-            if(current.startsWith("http://")){
-                String host=current.substring(7);
-                if(host.endsWith(":47321")) host=host.substring(0,host.length()-6);
-                field.setText(host);
-            }
+            try { field.setText(RemoteClient.normalizeHost(current)); }
+            catch (IllegalArgumentException ignored) { }
             LinearLayout wrap=PhoneUi.column(this);
             wrap.setPadding(dp(18),0,dp(18),0);
             wrap.addView(field);
@@ -293,6 +335,7 @@ public final class ClientActivity extends Activity {
                         stopService(new Intent(this,CompanionService.class));
                         stopService(new Intent(this,VoiceSessionService.class));
                         RemoteClient.forget(this);
+                        pairingPin = "";
                         showPair("","");
                     }).show();
         }),PhoneUi.margins(this,0,9));

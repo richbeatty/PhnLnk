@@ -13,7 +13,7 @@ This is the current source-of-truth list of missing or unproven behavior. It is 
 | Recent companion requests | Implemented | Not a complete host call-log sync |
 | Incoming alerts | Implemented by status polling | Background delivery and wake behavior test |
 | Experimental local ADB pairing | Implemented | Android settings still require user approval |
-| ADB helper startup | User previously reported helper ready | V2 recovery and reboot behavior still unverified |
+| ADB helper startup | User previously reported helper ready | V3 bootstrap, recovery and reboot behavior still unverified |
 | Alternative cellular capture routes | Implemented | Actual MP01 downlink speech not verified |
 | Alternative cellular injection routes | Implemented | Caller hears speech/beep on MP01 not verified |
 | Encrypted media TCP session | Implemented | Actual JVM protocol test must pass in CI |
@@ -23,7 +23,7 @@ This is the current source-of-truth list of missing or unproven behavior. It is 
 | Automatic remote reconnect | Partial | Android, Wi-Fi and service policy behavior |
 | Calls after screen off/reboot | Not validated | Repeated MP01 field test |
 | Internet call relay | Not implemented | Secure discovery/relay or managed VPN integration |
-| Control API encryption | Not implemented | TLS or equivalent authenticated transport |
+| Control API encryption | Pinned HTTPS implemented; production TLS primitives JVM tested | AndroidKeyStore, UI migration and update persistence on devices |
 | Emergency calls | Not supported | Use normal Phone app |
 | Android default dialer role | Intentionally not requested | User must explicitly approve and benefit be proven |
 
@@ -47,7 +47,7 @@ Foreground microphone, host service, companion monitor, shell helper and Android
 
 ### 5. Safe remote connectivity
 
-The app's AES-GCM voice channel is encrypted, but the host's call-control HTTP and initial pairing are not TLS protected. The app must not be publicly exposed. An independent private VPN is a possible transport, but PhnLnk does not provision, discover or manage one yet.
+The media channel uses AES-GCM and call-control/pairing use pinned HTTPS from 0.9.3. Existing saved tokens migrate only after explicit host identity verification. Android runtime migration and transport identity persistence remain unverified. The app must not be publicly exposed. An independent private VPN is a possible transport, but PhnLnk does not provision, discover or manage one yet.
 
 ### 6. Call behavior beyond basics
 
@@ -76,4 +76,4 @@ Call waiting, conference calls, multiple simultaneous cellular call accounts, Bl
 
 An item may move from device-unverified to working only with dated reproducible evidence, exact device/OS, expected and actual result, and confirmation of the specific capability. A maintainer must not infer this from source code, CI, README text or enthusiasm.
 
-Updated alongside version 0.9.2.
+Updated alongside version 0.9.3. See [MP01 feasibility](MP01_AUDIO_FEASIBILITY.md) and [engineering audit](ENGINEERING_AUDIT.md) for new independent source evidence and exact validation boundaries.

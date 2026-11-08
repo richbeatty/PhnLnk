@@ -19,6 +19,16 @@ A Beeper-simple Android companion that makes and answers **real cellular calls**
 | Updates | Same package ID and permanently pinned release signing certificate; new releases install on top without uninstalling and losing pairing. |
 | Privacy | Private, authenticated, encrypted communications. No public unencrypted local HTTP listener as an internet-facing shortcut. |
 
+## Current 0.9.3 engineering status (November 8, 2026)
+
+Control and initial pairing now require **pinned HTTPS on 47321**. The host's per-install AndroidKeyStore certificate is verified through the host QR or a full-fingerprint comparison. Existing Android tokens are retained and explicitly migrated once; no plaintext fallback. Both apps must update. This transport identity is separate from the permanent APK signing certificate. See [control security](docs/CONTROL_SECURITY.md). Earlier version-specific HTTP notes below describe history.
+
+V3 repairs helper framework Looper startup; production relay tests cover error-before-close, helper EOF, duplex forwarding, competing clients and revocation. Production protocol tests cover concurrency, fragmentation, timeout, tampering and replay. Native TLS primitives and an offline policy inspector are tested. No physical MP01, AndroidKeyStore migration, screen-off or remote speech result is claimed.
+
+Minimal's published MP01 sources include MT6789 incall playback at 44.1/48 kHz stereo and a fixed-48k call configuration, but other policy variants differ. The installed policy and vendor HAL remain unconfirmed. Independent direct-mode reports include MediaTek success with local output mute off, not this phone. The [MP01 feasibility report](docs/MP01_AUDIO_FEASIBILITY.md) records precise sources, unresolved evidence and the smallest conditional requirement change: OEM-supported firmware/system integration if no authorized route exists. No extra hardware, root, Shizuku, carrier change or forced dialer role was introduced.
+
+See [engineering audit](docs/ENGINEERING_AUDIT.md). Do not send another speculative APK or call PhnLnk functional on build/protocol results.
+
 ## Conditional default-dialer consideration (November 7, 2026)
 
 The user would consider making PhnLnk the default Phone app **only if** that enables a genuinely usable dialer plus two-way cellular audio on a second Android device, together with a more polished product experience. This is NOT blanket permission to request the role. Official Android documentation does not grant cellular call capture or injection to an ordinary third-party default dialer. Therefore, PhnLnk should not ask for this role just to make the interface prettier. Keep the ordinary Phone app until a verified feature truly warrants that choice.
@@ -80,7 +90,7 @@ The user reported `EOFException` after experimental v0.9.1 voice streaming. With
 
 The user has explicitly requested **extensive GitHub documentation and a handoff prompt for a more capable coding agent**. Documentation is now indexed at [docs/INDEX.md](docs/INDEX.md). The full prompt lives at [docs/CODER_AGENT_HANDOFF_PROMPT.md](docs/CODER_AGENT_HANDOFF_PROMPT.md).
 
-**Separate networks are a core product goal, not a future optional feature.** The host may remain on home Wi-Fi while the companion uses mobile data or another Wi-Fi network. A basic two-device VPN overlay is an incremental engineering route; seamless one-app connectivity likely requires a secure rendezvous/signaling plane and audited encrypted internet transport. The current control HTTP port is still plaintext, so direct public port forwarding is prohibited. See [docs/PHONE_LINK_AND_REMOTE_NETWORKS.md](docs/PHONE_LINK_AND_REMOTE_NETWORKS.md).
+**Separate networks are a core product goal, not a future optional feature.** The host may remain on home Wi-Fi while the companion uses mobile data or another Wi-Fi network. A basic two-device VPN overlay is an incremental engineering route; seamless one-app connectivity likely requires a secure rendezvous/signaling plane and audited encrypted internet transport. At 0.9.2 the control HTTP port was plaintext. Pinned HTTPS supersedes that in 0.9.3, but public port forwarding remains prohibited. See [docs/PHONE_LINK_AND_REMOTE_NETWORKS.md](docs/PHONE_LINK_AND_REMOTE_NETWORKS.md).
 
 **Phone Link research:** Microsoft officially requires nearby Bluetooth for its PC calling feature. An Android HFP client is a hidden/system API often gated by BLUETOOTH_PRIVILEGED, and Bluetooth cannot carry audio when devices are miles apart on separate networks. Its UX is worth studying, not an assumed ready-made audio solution for this project.
 
@@ -103,7 +113,7 @@ Do NOT commit signing material, add it to releases, or log it. Maintain a secure
 ## Required test gates
 
 1. `python3 tools/maintainer_check.py` passes.
-2. The Android debug APK compiles and its bundled assets are verified in CI. A debug artifact is not a release.
+2. Voice protocol/relay, control TLS and offline policy tests pass. The Android debug APK compiles and its bundled assets are verified in CI. A debug artifact is not a release.
 3. For a GitHub Release, the same permanent key is used and `apksigner verify --verbose --print-certs` passes.
 4. Verify `applicationId` and `versionCode` invariants.
 5. For any claimed new cellular audio path, obtain an on-device test of live remote speech in both directions, incoming and outgoing. The build passing is not sufficient.
@@ -114,6 +124,7 @@ Do NOT commit signing material, add it to releases, or log it. Maintain a secure
 
 | Date | Decision | Reason |
 | --- | --- | --- |
+| 2026-11-08 | Pinned HTTPS and preserved-token migration | Eliminate plaintext pairing/control while retaining saved Android authorization |
 | 2026-11-07 | No extra hardware | User expressly rejected Linux/Bluetooth gateway approach |
 | 2026-11-07 | No Shizuku or root; optional guided debugging approved | User explicitly accepted one-time Android pairing with automatic reconnection for an experimental audio path |
 | 2026-11-07 | No default Phone app role | User requires retaining stock dialer |

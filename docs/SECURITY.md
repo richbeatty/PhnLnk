@@ -17,19 +17,17 @@ Consider these attackers:
 
 Current protection does not fully address every attacker.
 
-## Local HTTP control: significant remaining risk
+## Pinned HTTPS control and pairing (0.9.3)
 
-`HttpBridge` listens on TCP 47321 with HTTP bearer authorization. It does **not** use TLS.
+`HttpBridge` now serves TLS on TCP 47321. The host certificate is held in AndroidKeyStore, independently of APK signing. The native companion pins its complete SHA-256 certificate fingerprint, obtained from the physical host QR or an explicit all-groups comparison. Initial code/token exchange and subsequent bearer control are encrypted. There is no plaintext fallback.
 
-- Initial pairing sends the six-digit code and returns a token over HTTP.
-- Later status and call-control requests send the bearer token over HTTP.
-- A passive observer on an untrusted LAN can potentially capture the token.
-- Anyone obtaining a valid token could attempt remote call-control requests.
-- Browser origin checks and no-store headers do not replace transport encryption.
+Manual discovery obtains only an **untrusted candidate** over a TLS handshake, with no application data. It is trusted only after the user compares it with the intended host. The six-digit pairing code by itself does not prevent an active MITM. Do not silently accept a changed pin or weaken global CA trust. Native requests reject redirects and pin mismatches.
 
-**Mitigation until a security upgrade:** Use only a trusted private Wi-Fi network or an independently provisioned authenticated private VPN. Never port forward TCP 47321 or 47322 to the internet. Treat the host's IP and service exposure as sensitive. An encrypted private VPN helps protect traffic in transit, but PhnLnk does not install or configure one.
+Existing Android pairings retain their tokens. They need one explicit certificate verification and an atomic address/pin migration before background requests can resume. Updating only one app does not bridge HTTP and HTTPS. Browser storage changes with the origin; browser trust requires separate fingerprint verification. See [control identity and migration](CONTROL_SECURITY.md).
 
-**Unfinished security work:** Add authenticated TLS or a transport with mutual authentication for the control API, including initial pairing and token exchange. This is a prerequisite for safe broad internet deployment.
+**Exposure boundary:** still use a trusted private network or an independently configured authenticated VPN. Never port forward host or debugging ports. TLS fixes transport confidentiality, not all public abuse, lifecycle or availability risks. Worker limits and socket deadlines reduce resource exhaustion, but are not a public-service security review. Old tokens sent over HTTP before this update may already be compromised; explicit revocation and secure re-pairing are necessary if compromise is suspected.
+
+**Unverified:** AndroidKeyStore runtime behavior, identity persistence on a signed app update, QR/manual UI behavior on physical devices, and independent penetration testing. The JVM TLS suite executes actual TLS primitives with test certificates, not AndroidKeyStore.
 
 ## Voice transport: authenticated and encrypted, but not audited
 
@@ -43,19 +41,19 @@ Implemented defenses:
 - Each frame has an authenticated sequence and ciphertext.
 - Directional keys and unique GCM nonce prefixes prevent cross-direction nonce reuse.
 - Wrong tags and replayed or out-of-sequence packets are rejected.
-- Only one active voice session is intended.
-- Revoking all pairings closes the current media sockets.
+- One authenticated voice owner; four bounded handshake workers with an absolute nine-second handshake deadline. Idle unauthenticated sockets do not reserve the owner.
+- Revoking all pairings closes active and authenticating media sockets. The next control request must authorize again; an action already dispatched to Telecom cannot be recalled.
 
 Not yet included:
 
 - Independent penetration testing, formal protocol verification or protocol version negotiation.
-- Media session rate limits against unauthorized connection floods.
+- Per-peer rate limits and protection against repeated connection floods beyond bounded workers.
 - Automatic media key rotation within a long-running session.
 - Explicit authenticated per-frame end-of-session signaling.
-- Full resource quota enforcement for simultaneous inbound connections.
-- Secure control-plane pairing from a hostile local network.
+- Public-service abuse protection and per-device quotas beyond the implemented worker/queue caps.
+- Independent review of the implemented QR/manual certificate verification and trust migration.
 
-AES on 47322 does not retroactively secure plaintext HTTP pairing on 47321.
+Both ports now encrypt traffic. Upgrading cannot retroactively protect tokens exchanged by older plaintext releases. The stored token hash is an equivalent voice-authentication secret and must be protected even though it is not the raw bearer token.
 
 ## Local shell helper
 
@@ -95,7 +93,7 @@ Do not log or report bearer tokens, private shell keys, six-digit Android debugg
 | Replay or wrong sequence | Rejected | Connection disruption |
 | Revoked host pairing | Closes active sockets | Already captured plaintext token on Wi-Fi remains sensitive until revocation |
 | Wrong Android shell key | Local helper rejects request | Local denial of service |
-| Compromised LAN | Media encrypted, control HTTP not | Token theft or unauthorized call-control actions |
+| Compromised LAN | Media encrypted; control/pairing use pinned HTTPS | Wrong manual fingerprint approval, previously stolen tokens, denial of service |
 | Stale Wireless Debugging pairing | User must manage Android authorization | Unknown debugging clients are dangerous |
 | Leaked private signing key | Not solvable within app | Attacker could distribute trusted updates |
 

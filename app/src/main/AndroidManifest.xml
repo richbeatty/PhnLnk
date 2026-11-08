@@ -22,7 +22,7 @@
     <application
         android:allowBackup="false"
         android:label="PhnLnk"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
 

@@ -107,10 +107,10 @@ final class HostAdb {
         try {
             existing = AudioProbeClient.request(context, "PING");
         } catch (Exception ignored) { existing = ""; }
-        if (existing.startsWith("READY:V2:")) return existing;
+        if (existing.startsWith("READY:V3:")) return existing;
         if (existing.startsWith("READY:V1:")) {
             // A signed app update does not automatically restart a shell UID
-            // daemon. Stop the previous probe so the V2 voice bridge can bind
+            // daemon. Stop the previous probe so the V3 framework bootstrap can bind
             // its loopback socket. The ADB pairing identity is kept.
             progress(listener, "Replacing previous audio helper with full-duplex version...");
             try { AudioProbeClient.request(context, "STOP"); }
@@ -216,7 +216,7 @@ final class HostAdb {
         for (int attempt = 0; attempt < 10; attempt++) {
             try {
                 String response = AudioProbeClient.request(context, "PING");
-                if (response.startsWith("READY:V2:")) return response;
+                if (response.startsWith("READY:V3:")) return response;
             } catch (Exception ignored) { }
             Thread.sleep(300);
         }

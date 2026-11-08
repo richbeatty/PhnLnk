@@ -2,7 +2,7 @@
 
 This is the documentation home for PhnLnk. Read the implementation status before claiming a feature works on a particular phone.
 
-**Current development version:** 0.9.2, experimental cellular voice transport. **Actual two-way cellular speech on the MP01 is not verified.** Compiling Android, connecting ADB, obtaining shell UID 2000, opening an audio route, and passing the encrypted voice protocol tests do not prove that the far-end person is heard.
+**Current development version:** 0.9.3, experimental cellular voice transport. **Actual two-way cellular speech on the MP01 is not verified.** Compiling Android, connecting ADB, obtaining shell UID 2000, opening an audio route, and passing the encrypted voice protocol tests do not prove that the far-end person is heard.
 
 ## Guide to the repository
 
@@ -11,10 +11,13 @@ This is the documentation home for PhnLnk. Read the implementation status before
 | [User setup](SETUP_GUIDE.md) | Host and companion setup, pairing, call control, optional audio |
 | [Architecture](ARCHITECTURE.md) | Components, lifecycle, threads, topology and trust boundaries |
 | [Voice protocol](VOICE_PROTOCOL.md) | Byte-level handshake, crypto, audio framing and failure rules |
+| [MP01 feasibility](MP01_AUDIO_FEASIBILITY.md) | AOSP, public manufacturer policy, comparable devices and remaining evidence |
+| [Control security](CONTROL_SECURITY.md) | TLS identity, QR/manual verification and saved-token migration |
+| [Engineering audit](ENGINEERING_AUDIT.md) | Prioritized defects, fixes, validation and open release gates |
 | [Audio backends](AUDIO_BACKENDS.md) | Restricted Android telephony routes and alternatives |
 | [API reference](API_REFERENCE.md) | Control endpoints and voice socket details |
 | [Troubleshooting](TROUBLESHOOTING.md) | Failures including EOFException, silence and debugging reconnection |
-| [Security](SECURITY.md) | Attacker assumptions, plaintext control risk and privacy |
+| [Security](SECURITY.md) | Attacker assumptions, pinned HTTPS, migration and privacy |
 | [Test plan](TEST_PLAN.md) | CI, protocol tests and real-phone acceptance criteria |
 | [Release playbook](RELEASE_PLAYBOOK.md) | Build, signing, GitHub releases, update compatibility |
 | [Maintainer workflow](MAINTAINER_WORKFLOW.md) | Contributor rules and prevention of previous regressions |
@@ -44,7 +47,7 @@ Avoid the single word "works" without naming the exact capability and test. A lo
 | App package | `com.richbeatty.phnlnk` |
 | Minimum Android API | 30 |
 | Target Android API | 34 |
-| Host control service | TCP 47321, authenticated but unencrypted HTTP |
+| Host control service | TCP 47321, HTTPS with verified host certificate pin |
 | Encrypted voice transport | TCP 47322, HMAC pairing proof and AES-256-GCM |
 | Local shell audio helper | TCP 127.0.0.1:47327, per-install secret |
 | PCM | 16 kHz, mono, 16-bit signed little-endian |

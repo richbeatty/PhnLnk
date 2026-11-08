@@ -38,11 +38,11 @@ Changes in 0.9.2 make shell startup exceptions report an explicit `ERROR:AUDIO_I
 
 ## Which connection failed?
 
-### Basic call-control HTTP
+### Basic call-control HTTPS
 
 If the companion cannot reach the host's private IP, check the host service, Wi-Fi, cellular hotspot isolation, VLAN separation, VPN route, or a stale saved IP. Host control uses port 47321. Connection authorization is distinct from the Android ADB identity.
 
-If you see a 401, the paired HTTP token may have been revoked. Do not confuse it with a failing shell helper. Do not print or paste the token.
+If you see a 401, the paired HTTPS bearer token may have been revoked. Do not confuse it with a failing shell helper. Do not print or paste the token.
 
 ### Host Wireless Debugging
 
@@ -52,7 +52,7 @@ The **Wireless Debugging connection port** shown on the main Settings screen is 
 
 ### Shell helper
 
-A PING READY does not imply audio permission. The shell helper checks UID 2000 before accepting requests. If the bundled helper version changed, PhnLnk must stop and replace its previous process. A stale V1 helper cannot implement V2 STREAM commands.
+A PING READY does not imply audio permission. The shell helper checks UID 2000 before accepting requests. If the bundled helper version changed, PhnLnk must stop and replace its previous process. A stale V1/V2 helper must be replaced by V3, reusing the saved ADB identity. V3 fixes framework Looper startup; its readiness still does not prove speech.
 
 Inspect the host's authorized `voiceStage` and `voiceLastError` from `GET /api/status`. Do not assume an old `helper_ready` preference means a current process exists.
 
@@ -89,3 +89,12 @@ Try the experimental routes methodically: REDIRECT, DOWNLINK and CALL for incomi
 - Do not take over the default Phone role to chase unavailable audio privileges.
 - Do not disable TLS-equivalent media encryption, per-device authorization, or sequence checks to "fix" a connection error.
 - Do not repeatedly test a user's personal calling service without a credible root-cause hypothesis.
+
+
+## HTTPS upgrade and certificate mismatch (0.9.3)
+
+Update both apps. Existing saved Android tokens remain present, but open the companion once to verify all groups of the Security fingerprint shown on the host. Until then polling fails closed. For an identity mismatch, compare with the physical intended host; never automatically accept a replacement. Changing a private address keeps the pin and pairing. Old HTTP clients cannot connect to the TLS listener. See [control security](CONTROL_SECURITY.md).
+
+## Additional EOF and policy evidence
+
+V3 fixes framework Looper creation; the relay keeps its socket open while sending startup errors. These repairs are independently supported by Android source and production relay tests, but not a diagnosis of an unavailable device trace. For policy/native-format constraints from Minimal's public MP01 sources, read [MP01 feasibility](MP01_AUDIO_FEASIBILITY.md) before selecting more backends.

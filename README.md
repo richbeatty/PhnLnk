@@ -2,7 +2,7 @@
 
 PhnLnk is an experimental Android companion for controlling calls from an existing cellular phone and attempting to use a second existing Android device for voice. The project preserves the host's original SIM and number. It is designed for a main phone and a companion, without a third gateway or default-Phone-app requirement.
 
-**Current development version: 0.9.2.**
+**Current development version: 0.9.3.**
 
 **Critical status:** PhnLnk's two-way encrypted media transport has been implemented, but **actual cellular audio capture and injection on the owner's Minimal Phone MP01 have not been verified**. The user previously reported the original call recording route as silent. Software tests and Android compilation cannot establish that the distant caller will hear and be heard. This is **not** a reliable calling replacement or emergency dialer.
 
@@ -21,19 +21,20 @@ Also read [MAINTAINER.md](MAINTAINER.md) before modifying software or promising 
 - A separate voice socket authenticated with the existing paired-device token fingerprint, using directional AES-256-GCM audio frames.
 - Companion microphone foreground service, speaker or earpiece route, mute, and experimental in-band DTMF tone generation.
 - A stage-aware error path for host helper initialization, authorization, connection closing, truncated media and timeouts.
-- Automated Java tests for the real `VoiceSecureTransport.java` implementation over loopback TCP.
+- Automated tests of production voice protocol, relay and TLS code over real loopback sockets, plus an offline vendor-policy inspector.
+- A prepared/pumped framework Looper in helper V3, staged startup errors, bounded authentication workers and improved cancellation.
 
-The app remains a development preview because the actual MP01 telephony audio HAL is the unresolved integration point.
+The app remains a development preview because the actual MP01 telephony audio HAL is the unresolved integration point. Read the [MP01 source investigation](docs/MP01_AUDIO_FEASIBILITY.md) and [engineering audit](docs/ENGINEERING_AUDIT.md): public manufacturer sources expose relevant routes and native format constraints, but are not proof of two-way speech on the installed firmware.
 
 ## Network boundaries
 
 | Port | Protocol | Use |
 | --- | --- | --- |
-| 47321 | Authenticated HTTP, **without TLS** | Pairing and call control |
+| 47321 | HTTPS with verified host certificate pin | Pairing and call control |
 | 47322 | HMAC-authenticated AES-GCM TCP | Experimental companion voice |
 | 127.0.0.1:47327 | Local secret-authenticated TCP | Shell audio helper |
 
-**Never expose these listeners by port forwarding to the public internet.** The existing control-plane HTTP and initial token exchange are plaintext. Use only trusted private Wi-Fi or an independently provisioned private encrypted VPN. PhnLnk does not create an internet relay or provision a VPN.
+**Never expose these listeners by port forwarding to the public internet.** Pairing and call control now use pinned HTTPS, including initial token exchange. Existing Android companions retain their tokens and verify the host fingerprint once; see [control migration](docs/CONTROL_SECURITY.md). Use only trusted private Wi-Fi or an independently provisioned private encrypted VPN. PhnLnk does not create an internet relay or provision a VPN.
 
 ## Build and test
 

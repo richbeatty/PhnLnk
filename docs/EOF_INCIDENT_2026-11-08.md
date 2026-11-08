@@ -100,3 +100,10 @@ These tests are meaningful, but do not execute Android AudioRecord, the MP01 HAL
 - Avoid repeatedly requesting device testing until software checks and independent compatibility research justify it.
 
 The issue should not be closed merely because the build passes. See [Troubleshooting](TROUBLESHOOTING.md), [Test plan](TEST_PLAN.md) and [Known limitations](KNOWN_LIMITATIONS.md).
+
+
+## Additional source defects confirmed in 0.9.3
+
+The helper called `ActivityThread.systemMain()` on an unprepared worker. Android 14's ActivityThread constructs Handlers, which require a Looper. V3 creates framework context on a prepared main Looper and keeps callbacks running. A PING-only helper could previously look ready before this failure.
+
+Separately, VoiceRelayServer's try-with-resources closed the companion socket before its catch block tried to send an encrypted startup error. Moving close into finally lets that error reach the companion. Production relay tests now simulate a helper connect failure and an early EOF and assert the encrypted error text arrives. Neither is proven to be the cause of the owner's particular EOF without its trace.

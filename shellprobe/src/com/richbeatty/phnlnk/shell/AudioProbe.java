@@ -12,6 +12,7 @@ import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Process;
+import android.os.Looper;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -22,6 +23,10 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Opt-in, local shell-UID cellular audio bridge.
@@ -44,6 +49,10 @@ public final class AudioProbe {
     private volatile boolean running = true;
     private volatile Socket streamingSocket;
     private volatile ServerSocket listener;
+    private Context frameworkContext;
+    private Exception frameworkFailure;
+    private final ThreadPoolExecutor workers = new ThreadPoolExecutor(0, 4, 30,
+            TimeUnit.SECONDS, new SynchronousQueue<>());
 
     private AudioProbe(byte[] key) { secret = key; }
 
@@ -54,17 +63,32 @@ public final class AudioProbe {
             return;
         }
         AudioProbe daemon = new AudioProbe(args[0].getBytes(StandardCharsets.US_ASCII));
+        // app_process does not perform ActivityThread.main() for us. systemMain()
+        // constructs Handler instances, so it MUST run on a prepared Looper.
+        // Keep that Looper pumping for AudioManager's framework callbacks.
+        Looper.prepareMainLooper();
+        try { daemon.frameworkContext = createShellContext(); }
+        catch (Exception error) { daemon.frameworkFailure = error; }
+        Thread accept = new Thread(() -> {
+            try { daemon.listen(); }
+            catch (Exception error) { System.err.println("audio listener: " + brief(error)); }
+            finally { daemon.workers.shutdownNow(); System.exit(0); }
+        }, "phnlnk-audio-accept");
+        accept.start();
+        Looper.loop();
+    }
+
+    private void listen() throws IOException {
         try (ServerSocket server = new ServerSocket(PORT, 8,
                 InetAddress.getByName("127.0.0.1"))) {
-            daemon.listener = server;
-            while (daemon.running) {
+            listener = server;
+            while (running) {
                 try {
                     Socket socket = server.accept();
-                    Thread worker = new Thread(() -> daemon.handle(socket),"phnlnk-audio");
-                    worker.setDaemon(true);
-                    worker.start();
+                    try { workers.execute(() -> handle(socket)); }
+                    catch (RejectedExecutionException full) { socket.close(); }
                 } catch (IOException error) {
-                    if (daemon.running) System.err.println("audio accept: " + brief(error));
+                    if (running) System.err.println("audio accept: " + brief(error));
                 }
             }
         }
@@ -84,17 +108,23 @@ public final class AudioProbe {
                     command.startsWith("INJECT:")?"INJECT":command;
             switch (operation) {
                 case "PING":
-                    output.writeUTF("READY:V2:shell UID " + Process.myUid()
+                    output.writeUTF("READY:V3:shell UID " + Process.myUid()
                             + (occupied.get() ? ":streaming" : ":idle"));
                     output.flush();
                     break;
                 case "CAPTURE":
-                    output.writeUTF(probeCapture());
-                    output.flush();
+                    if (!occupied.compareAndSet(false,true)) {
+                        output.writeUTF("ERROR:Another audio operation is active");output.flush();break;
+                    }
+                    try { output.writeUTF(probeCapture());output.flush(); }
+                    finally { occupied.set(false); }
                     break;
                 case "INJECT":
-                    output.writeUTF(probeInjection(command));
-                    output.flush();
+                    if (!occupied.compareAndSet(false,true)) {
+                        output.writeUTF("ERROR:Another audio operation is active");output.flush();break;
+                    }
+                    try { output.writeUTF(probeInjection(command));output.flush(); }
+                    finally { occupied.set(false); }
                     break;
                 case "STREAM":
                     if (!occupied.compareAndSet(false,true)) {
@@ -146,7 +176,14 @@ public final class AudioProbe {
      * not to the system package "android". The builder honors this context on
      * modern Android. Failure here is treated as an unsupported backend.
      */
-    private static Context shellContext() throws Exception {
+    private Context shellContext() throws Exception {
+        if (frameworkFailure != null)
+            throw new IllegalStateException("FRAMEWORK_BOOTSTRAP: " + brief(frameworkFailure), frameworkFailure);
+        if (frameworkContext == null) throw new IllegalStateException("FRAMEWORK_BOOTSTRAP: Context unavailable");
+        return frameworkContext;
+    }
+
+    private static Context createShellContext() throws Exception {
         Class<?> at=Class.forName("android.app.ActivityThread");
         Object thread=at.getMethod("currentActivityThread").invoke(null);
         if(thread==null)thread=at.getMethod("systemMain").invoke(null);
@@ -202,7 +239,7 @@ public final class AudioProbe {
 
     private static final String[] BACKENDS={"REDIRECT","DOWNLINK","CALL"};
 
-    private static String probeCapture() {
+    private String probeCapture() {
         StringBuilder results=new StringBuilder();
         try {
             Context context=shellContext();
@@ -291,7 +328,7 @@ public final class AudioProbe {
         catch(Exception e){track.release();throw e;}
     }
 
-    private static String probeInjection(String command) {
+    private String probeInjection(String command) {
         AudioTrack track=null;
         try {
             Context context=shellContext();
@@ -321,7 +358,7 @@ public final class AudioProbe {
         finally{if(track!=null){try{track.stop();}catch(Exception ignored){}track.release();}}
     }
 
-    private static void stream(Socket socket,DataInputStream input,
+    private void stream(Socket socket,DataInputStream input,
                                DataOutputStream output,String command,
                                AtomicBoolean replyStarted) throws Exception {
         String captureChoice="AUTO",uplinkChoice="AUTO";
