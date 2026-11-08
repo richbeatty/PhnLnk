@@ -45,6 +45,16 @@ jobs:
           unzip -t app/build/outputs/apk/debug/app-debug.apk | tail -n 1
           unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -F 'assets/phnlnk-probe.jar'
 
+      - name: Build unsigned release candidate for permanent signing
+        run: gradle --no-daemon :app:assembleRelease
+
+      - name: Upload unsigned release candidate (not installable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhnLnk-UNSIGNED-RELEASE-CANDIDATE
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+
       - name: Keep debug test APK as Actions artifact, NOT a release
         uses: actions/upload-artifact@v4
         with:
