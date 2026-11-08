@@ -61,6 +61,15 @@ Do NOT commit signing material, add it to releases, or log it. Maintain a secure
 | 2026-11-07 | Maintain persistent repo instructions | Prevent recurring regressions during rapid prototyping |
 | 2026-11-07 | Signed GitHub releases only | Stop shipping APKs with incompatible, temporary certificates |
 | 2026-11-07 | Keep all incomplete audio routes clearly labeled | Avoid false promises to users |
+| 2026-11-07 | Research cloud VoIP forwarding and Beeper Android APIs | Distinguish verified-number internet calling from host modem audio; requires opt-in provider billing |
+
+## Comprehensive external solutions research
+
+See [CALL_RESEARCH_2026.md](docs/CALL_RESEARCH_2026.md) for the November 7, 2026 investigation of Beeper, Google Messages, AT&T NumberSync, T-Mobile DIGITS, Google Fi Web Calls, Android's audio policies, GitHub cellular gateways and low-cost verified-caller-ID VoIP.
+
+The closest technically supportable voice route without more hardware or privileged Android setup is AT&T inbound call forwarding to a hosted VoIP endpoint plus verified AT&T number as outbound caller ID. **This requires an additional paid voice provider and an AT&T forwarding configuration, so it is only an opt-in alternative, not a silent change to the user's nonnegotiable requirements.** No account was set up, no call forwarding was enabled, and the prototype has not implemented this path. It is not the host SIM's outgoing audio; the cloud provider handles that leg.
+
+Beeper officially does not support voice calling. Its Android Content Provider is a legitimate optional messaging integration, with user-granted permissions, and does not unlock cellular audio.
 
 ## Maintenance rule
 
