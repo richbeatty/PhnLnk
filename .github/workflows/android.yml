@@ -64,6 +64,9 @@ jobs:
           test -n "$ZIPALIGN"
           cp "$APKSIGNER_JAR" signing_tools/apksigner.jar
           cp "$ZIPALIGN" signing_tools/zipalign
+          CXX="$(find "$ANDROID_HOME/build-tools" -path '*/lib64/libc++.so' -type f | sort -V | tail -n 1)"
+          test -n "$CXX"
+          cp "$CXX" signing_tools/libc++.so
           chmod 755 signing_tools/zipalign
 
       - name: Upload Android signing tools for private offline signing
