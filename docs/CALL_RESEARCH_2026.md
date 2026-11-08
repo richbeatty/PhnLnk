@@ -142,3 +142,33 @@ Do not copy AirSIM's PolyForm Noncommercial source into a commercial PhnLnk prod
 - Validate audio in both directions, outgoing/incoming, DTMF, FCM wake, foreground/background, and signing/certificate continuity before any release called production-ready.
 
 No provider credentials were created and no AT&T forwarding changes were made during this research.
+
+
+## Additional search findings, 2026-11-07: network-level audio instead of recording
+
+### Candidate: cellular carrier conference as a software-only voice bridge
+
+This is a new engineering hypothesis, **not a verified working PhnLnk solution**:
+
+- AT&T's network supports conventional three-way calling on many phones. A conference call's audio is mixed by the network, not captured by a third-party Android application. See https://www.att.com/device-support/article/wireless/KM1275499/.
+- The second Android device could receive one leg over a free internet number, such as Google Voice set to **Prefer Wi-Fi and mobile data**. The first leg could be an actual AT&T cellular call to the intended recipient. The recipient would see the AT&T number if the host originates its leg.
+- Newer Android offers `TelecomManager.startConference(List<Uri>, Bundle)` with ordinary `CALL_PHONE` permission, **but it requires the SIM's PhoneAccount to advertise `CAPABILITY_ADHOC_CONFERENCE_CALLING`**. This is a distinct mechanism from merging two existing calls. See https://developer.android.com/reference/android/telecom/TelecomManager and https://developer.android.com/reference/android/telecom/PhoneAccount.
+- Verified AOSP code explicitly gates this by `CarrierConfigManager.KEY_SUPPORT_ADHOC_CONFERENCE_CALLS_BOOL` **and** IMS registration: https://android.googlesource.com/platform/packages/services/Telephony/+/master/src/com/android/services/telephony/TelecomAccountRegistry.java . The AOSP static default is false; AT&T and the actual host firmware may or may not enable it.
+- Incoming cellular calls already in progress cannot automatically be merged using only `startConference`; the normal merge and `Call.conference` controls are exposed through `InCallService` (default dialer or eligible wearable companion). The user explicitly rejects becoming the default dialer. Carrier call forwarding to a free VoIP number might cover inbound separately, but forwarding from AT&T to Google Voice can interact badly with linked-number loops and voicemail. This requires real tests. Google Voice free consumer service does not expose a public API to embed its audio into PhnLnk.
+- Google Voice is a separate number/account and would probably require a separate app to receive its call. This violates the desired all-inclusive experience. AT&T may count two simultaneous cellular call legs against the plan; check billing.
+- Even if outgoing ad hoc conference support exists, the path cannot be described as working until the host's exact SIM `PhoneAccount` capabilities and a controlled end-to-end two-way test are confirmed.
+
+**Feasibility test that avoids dialing anyone:** A host-side status-only diagnostic could retrieve visible `PhoneAccount` capabilities from `TelecomManager`/carrier configuration (if permitted) and show whether `CAPABILITY_ADHOC_CONFERENCE_CALLING` is present. Do not attempt to originate two calls without the user's explicit permission. If the capability is missing, do not promise this route.
+
+This is a fundamentally different route from privileged cellular PCM capture and deserves tracking, but is not yet a fit.
+
+### Rechecked alternative APIs
+
+- Google's Android Cross-device Services **Call casting** currently targets video calls in apps such as Google Meet, not the original AT&T cellular voice call: https://support.google.com/android/answer/14997291.
+- Jetpack Telecom `CallsManager.CAPABILITY_SUPPORTS_CALL_STREAMING` applies to **VoIP calls owned by the application**, not unrestricted access to a separate carrier call: https://developer.android.com/reference/androidx/core/telecom/CallsManager.
+- Android `MANAGE_ONGOING_CALLS` can provide companion `InCallService` control to apps paired with a physical wearable via `CompanionDeviceManager`. This provides call control, **not cellular PCM audio**; it is not a generic software-only grant to pair two remote Android devices: https://developer.android.com/reference/android/telecom/TelecomManager .
+- Android audio sharing documents say an AccessibilityService can still **capture microphone input during a call**, but explicit capture of cellular uplink/downlink requires a privileged app with `CAPTURE_AUDIO_OUTPUT`. Acoustic speakerphone relay is fragile, can mute/silence streams, and cannot meet a reliable screen-off, privacy-preserving product target: https://developer.android.com/media/platform/sharing-audio-input .
+- Legacy AT&T documentation describes NumberSync on certain **AT&T-compatible Android tablets**. The current May 20, 2026 AT&T consumer device list names Android **watches** as compatible, not arbitrary Android tablets. Treat old instructions as historical unless AT&T confirms eligibility for the user's existing exact devices: https://www.att.com/support/article-modal/wireless/KM1209875/ .
+
+**Current status:** No verified complete route under all fixed conditions. Do not silently relax them.
+
