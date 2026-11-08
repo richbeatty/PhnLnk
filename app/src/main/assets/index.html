@@ -1,113 +1,182 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="referrer" content="no-referrer">
-  <title>PhnLnk</title>
-  <style>
-    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; background: #f6f6f3; color:#171a17; }
-    * { box-sizing: border-box; }
-    body { margin:0; padding:28px 18px; }
-    main { width:100%; max-width:470px; margin:0 auto; }
-    h1 {font-size:34px; font-weight:650; letter-spacing:-1.5px; margin: 6px 0 4px;}
-    .muted { color:#666e67; line-height:1.5; }
-    .card {background:white; border:1px solid #e1e3dc; border-radius:18px; padding:22px; margin-top:20px;}
-    .status {display:flex; justify-content:space-between; align-items:center; gap:10px; }
-    .dot {width:9px; height:9px; border-radius:50%; background:#b9b9b2; display:inline-block; margin-right:6px;}
-    .ready .dot {background:#4f7962;}
-    .ringing .dot {background:#b08a42;}
-    .state {font-weight:600; text-transform:capitalize;}
-    input {width:100%; border:1px solid #d7dbd4; background:#fafaf8; border-radius:12px;
-      padding:16px; font-size:24px; letter-spacing:1px; margin:20px 0; color:#151815;}
-    button {cursor:pointer; font:inherit; border-radius:12px; font-weight:600;
-      padding:14px 16px; border:1px solid #d9ddd6; background:#fff; color:#212821;}
-    button:disabled {cursor:not-allowed; opacity:.45;}
-    .dial {width:100%; background:#2d5944; color:#fff; border-color:#2d5944;}
-    .row {display:grid; grid-template-columns:1fr 1fr; gap:10px;}
-    #answer {background:#e5f2e9; border-color:#c7dfce;}
-    #end {background:#f8e9e6; border-color:#edceca;}
-    #message {min-height:22px; margin:15px 0 0; font-size:14px;}
-    .small {font-size:12px; margin-top:20px; line-height:1.6;}
-    .tag {background:#eaece5; padding:4px 8px; border-radius:6px; font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>PhnLnk</title>
+<style>
+:root {font-family:system-ui,-apple-system,sans-serif;color:#17251c;background:#f5f6f3}
+* {box-sizing:border-box}
+body {margin:0;padding:28px 16px}
+main {max-width:440px;margin:auto}
+h1 {margin:0;font-size:36px;letter-spacing:-1px}
+h2 {font-size:20px;margin:0 0 12px}
+p {line-height:1.55}
+.muted {color:#607065;font-size:14px}
+.card {border:1px solid #e0e6df;background:white;padding:22px;border-radius:18px;margin:22px 0}
+input {display:block;width:100%;font:inherit;border:1px solid #d4ddd4;border-radius:12px;padding:15px;margin:14px 0;background:#fff}
+#code {font-size:30px;letter-spacing:6px;text-align:center;font-variant-numeric:tabular-nums}
+#number {font-size:21px}
+button {font:inherit;font-weight:650;border-radius:12px;background:#f2f6f1;color:#1b3625;
+ border:1px solid #d8dfd7;padding:13px;cursor:pointer}
+button:disabled {opacity:.45;cursor:default}
+.primary {width:100%;background:#286044;color:#fff;border-color:#286044}
+.row {display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}
+#answer {background:#e4f2e7}
+#end {background:#f8e8e7}
+.pill {display:inline-block;width:9px;height:9px;border-radius:50%;background:#9aaa9a;margin-right:8px}
+.ready .pill {background:#398458}
+.ringing .pill {background:#d6a345}
+#state {font-weight:650;text-transform:capitalize}
+.row-top {display:flex;justify-content:space-between;align-items:center;gap:12px}
+.small {font-size:12px;color:#6e796e}
+#pair-error,#message {min-height:22px;font-size:13px;color:#8b382e}
+#pair-screen[hidden],#phone-screen[hidden] {display:none}
+.flat {background:none;border:0;text-decoration:underline;font-size:12px;color:#66766b;padding:2px}
+</style>
 </head>
 <body>
-  <main>
-    <div class="tag">HOST PREVIEW · V0.1</div>
-    <h1>PhnLnk</h1>
-    <div class="muted">Your phone number. Your devices.</div>
-    <section class="card">
-      <div class="status">
-        <div><div id="indicator"><span class="dot"></span><span class="state" id="state">Connecting</span></div>
-          <div class="muted" id="device" style="font-size:13px;margin-top:8px">Waiting for host</div></div>
-        <button id="refresh" style="font-size:13px;padding:9px 12px">Refresh</button>
-      </div>
-    </section>
-    <section class="card">
-      <label for="number" style="font-weight:600">Make a call</label>
-      <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567">
-      <button class="dial" id="dial">Call from MP01</button>
-      <div class="row" style="margin-top:12px">
-        <button id="answer">Answer</button>
-        <button id="end">End call</button>
-      </div>
-      <div id="message" role="status" aria-live="polite" class="muted"></div>
-    </section>
-    <p class="small muted">
-      This is a call-control prototype. Calls use the AT&amp;T line on the MP01,
-      but voice stays on the phone. Remote two-way audio is not connected yet.
-      Never rely on this interface for emergency calls. Use only on a trusted
-      network or through a private VPN.
-    </p>
-  </main>
-  <script>
-    const $ = id => document.getElementById(id);
-    let busy = false;
-    async function status() {
-      try {
-        const response = await fetch('/api/status', {cache:'no-store'});
-        if (!response.ok) throw Error('Host unavailable (' + response.status + ')');
-        const data = await response.json();
-        $('state').textContent = data.callState;
-        $('device').textContent = data.model + ' · Android ' + data.android;
-        $('indicator').className = data.callState === 'ringing' ? 'ringing' :
-          data.callState === 'active' || data.callState === 'idle' ? 'ready' : '';
-        $('answer').disabled = busy || data.callState !== 'ringing' || !data.answerPermission;
-        $('end').disabled = busy || (data.callState !== 'active' && data.callState !== 'ringing');
-        $('dial').disabled = busy || data.callState !== 'idle' || !data.callPermission;
-      } catch (error) {
-        $('state').textContent = 'Disconnected';
-        $('device').textContent = error.message;
-        for (const id of ['dial','answer','end']) $(id).disabled = true;
-      }
-    }
-    async function action(which, params = {}) {
-      if (busy) return;
-      busy = true;
-      $('message').textContent = 'Sending request...';
-      try {
-        const response = await fetch('/api/' + which, {
-          method:'POST',
-          headers:{'Content-Type':'application/json','X-PhnLnk':'1'},
-          body:JSON.stringify(params)
-        });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) throw Error(payload.error || 'Request failed');
-        $('message').textContent = 'Request sent to MP01.';
-      } catch(error) {
-        $('message').textContent = error.message;
-      } finally {
-        busy = false;
-        setTimeout(status, 800);
-      }
-    }
-    $('dial').addEventListener('click', () => action('dial',{number:$('number').value}));
-    $('answer').addEventListener('click', () => action('answer'));
-    $('end').addEventListener('click', () => action('end'));
-    $('refresh').addEventListener('click', status);
-    status();
-    setInterval(status, 3000);
-  </script>
+<main>
+<h1>PhnLnk</h1>
+<p class="muted">Your phone, on your devices.</p>
+<section id="pair-screen" class="card" hidden>
+  <h2>Connect your device</h2>
+  <p class="muted">Open PhnLnk on the MP01, tap <strong>Pair a device</strong>, and enter the six digits.</p>
+  <form id="pair-form">
+    <input id="code" type="text" aria-label="Pairing code" inputmode="numeric"
+      autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+    <button class="primary" id="connect" type="submit">Connect</button>
+  </form>
+  <p id="pair-error" role="status" aria-live="polite"></p>
+  <p class="muted">Only once. This browser will remember your MP01.</p>
+</section>
+<section id="phone-screen" hidden>
+  <div class="card row-top">
+    <div>
+      <div id="indicator"><span class="pill"></span><span id="state">Connecting</span></div>
+      <div id="device" class="muted">Connecting to MP01</div>
+    </div>
+    <button id="refresh">Refresh</button>
+  </div>
+  <div class="card">
+    <h2>Dial</h2>
+    <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567">
+    <button class="primary" id="dial">Call from MP01</button>
+    <div class="row">
+      <button id="answer">Answer</button>
+      <button id="end">End call</button>
+    </div>
+    <p id="message" role="status" aria-live="polite"></p>
+  </div>
+  <button id="disconnect" class="flat">Forget this browser</button>
+</section>
+<p class="small">This is still a call-control preview: audio stays on the MP01.
+No remote conversations yet. Only use on trusted private Wi-Fi.
+Do not forward the host port or rely on it for emergency calls.</p>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const KEY = 'phnlnk.browser.key.v2';
+let token = localStorage.getItem(KEY);
+let busy = false;
+function showPair(message='') {
+  $('phone-screen').hidden = true;
+  $('pair-screen').hidden = false;
+  $('pair-error').textContent = message;
+}
+function showPhone() {
+  $('phone-screen').hidden = false;
+  $('pair-screen').hidden = true;
+}
+function forget() {
+  token = null;
+  localStorage.removeItem(KEY);
+  showPair('Tap Pair a device on your MP01 for a new code.');
+}
+function authHeaders(extra={}) {
+  return Object.assign({'Authorization':'Bearer '+token},extra);
+}
+async function refresh() {
+  if (!token) return;
+  try {
+    const r = await fetch('/api/status',{cache:'no-store',headers:authHeaders()});
+    if (r.status === 401) {forget(); return;}
+    if (!r.ok) throw Error('MP01 not responding');
+    const data = await r.json();
+    showPhone();
+    $('state').textContent = data.callState;
+    $('device').textContent = data.model;
+    $('indicator').className =
+      data.callState === 'ringing' ? 'ringing' :
+      (data.callState === 'idle' || data.callState === 'active' ? 'ready' : '');
+    $('answer').disabled = busy || data.callState !== 'ringing' || !data.answerPermission;
+    $('end').disabled = busy || !['ringing','active'].includes(data.callState);
+    $('dial').disabled = busy || data.callState !== 'idle' || !data.callPermission;
+  } catch(e) {
+    $('state').textContent = 'Disconnected';
+    $('device').textContent = 'Make sure the MP01 is online';
+    ['answer','end','dial'].forEach(id=>$(id).disabled=true);
+  }
+}
+async function pair(code) {
+  if (busy) return;
+  busy=true;
+  $('connect').disabled=true;
+  $('pair-error').textContent='Connecting...';
+  try {
+    const r = await fetch('/api/pair',{
+      method:'POST',headers:{'Content-Type':'application/json','X-PhnLnk':'1'},
+      body:JSON.stringify({code})
+    });
+    const data=await r.json();
+    if(!r.ok || !data.token) throw Error(data.error||'Unable to pair');
+    token=data.token;
+    localStorage.setItem(KEY,token);
+    $('code').value='';
+    showPhone();
+    await refresh();
+  } catch(e) {
+    $('pair-error').textContent=e.message;
+  } finally {
+    busy=false;
+    $('connect').disabled=false;
+  }
+}
+async function action(name,data={}) {
+  if (!token || busy) return;
+  busy=true;
+  $('message').textContent='Sending...';
+  try {
+    const r=await fetch('/api/'+name,{
+      method:'POST',
+      headers:authHeaders({'Content-Type':'application/json','X-PhnLnk':'1'}),
+      body:JSON.stringify(data)
+    });
+    if (r.status===401) {forget();return;}
+    const out=await r.json();
+    if(!r.ok || !out.ok) throw Error(out.error||'Request failed');
+    $('message').textContent='Sent to MP01';
+  } catch(e) {
+    $('message').textContent=e.message;
+  } finally {
+    busy=false;
+    setTimeout(refresh,700);
+  }
+}
+$('pair-form').addEventListener('submit',e=>{e.preventDefault();pair($('code').value.trim());});
+$('dial').addEventListener('click',()=>action('dial',{number:$('number').value}));
+$('answer').addEventListener('click',()=>action('answer'));
+$('end').addEventListener('click',()=>action('end'));
+$('refresh').addEventListener('click',refresh);
+$('disconnect').addEventListener('click',forget);
+const qrMatch=/^#pair=([0-9]{6})$/.exec(location.hash);
+history.replaceState(null,'',location.pathname);
+if(qrMatch && !token) {showPair();pair(qrMatch[1]);}
+else if(token) {showPhone();refresh();}
+else showPair();
+setInterval(()=>{if(token) refresh();},3000);
+</script>
 </body>
 </html>

@@ -9,7 +9,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -19,15 +18,15 @@ import org.json.JSONObject;
 
 final class HttpBridge {
     private final Context context;
-    private final String secret;
+    private final PairingManager pairing;
     private final ExecutorService clients = Executors.newFixedThreadPool(4);
     private volatile boolean closed;
     private ServerSocket listener;
     private Thread loop;
 
-    HttpBridge(Context context, String secret) {
+    HttpBridge(Context context) {
         this.context = context.getApplicationContext();
-        this.secret = secret;
+        this.pairing = PairingManager.get(context);
     }
 
     void start() throws IOException {
@@ -90,13 +89,6 @@ final class HttpBridge {
                         "text/plain", "Headers too large", "");
                 return;
             }
-            if (!authenticated(headers.get("authorization"))) {
-                respond(output, 401, "Unauthorized", "text/plain",
-                        "Pair with the key shown on the MP01",
-                        "WWW-Authenticate: Basic realm=\"PhnLnk\", charset=\"UTF-8\"\r\n");
-                return;
-            }
-
             if ("GET".equals(method) && "/".equals(path)) {
                 byte[] page;
                 try (InputStream asset = context.getAssets().open("index.html")) {
@@ -105,6 +97,53 @@ final class HttpBridge {
                 respond(output, 200, "OK", "text/html; charset=utf-8", page, "");
                 return;
             }
+            if ("POST".equals(method) && "/api/pair".equals(path)) {
+                if (!"1".equals(headers.get("x-phnlnk")) ||
+                        !headers.getOrDefault("content-type", "").startsWith("application/json")) {
+                    respond(output, 403, "Forbidden", "application/json",
+                            "{\"error\":\"Invalid request\"}", "");
+                    return;
+                }
+                String origin = headers.get("origin");
+                String host = headers.get("host");
+                if (origin != null && (host == null || !origin.equals("http://" + host))) {
+                    respond(output, 403, "Forbidden", "application/json",
+                            "{\"error\":\"Cross-origin request blocked\"}", "");
+                    return;
+                }
+                int len;
+                try { len = Integer.parseInt(headers.getOrDefault("content-length", "-1")); }
+                catch (NumberFormatException error) { len = -1; }
+                if (len < 0 || len > 128) {
+                    respond(output, 413, "Payload Too Large", "application/json",
+                            "{\"error\":\"Invalid pairing request\"}", "");
+                    return;
+                }
+                byte[] inputBody = new byte[len];
+                int offset = 0;
+                while (offset < len) {
+                    int n = input.read(inputBody, offset, len - offset);
+                    if (n < 0) throw new IOException("Incomplete request");
+                    offset += n;
+                }
+                try {
+                    JSONObject body = new JSONObject(new String(inputBody, StandardCharsets.UTF_8));
+                    String token = pairing.pair(body.optString("code", ""));
+                    JSONObject response = new JSONObject().put("ok", true).put("token", token);
+                    respond(output, 200, "OK", "application/json", response.toString(), "");
+                } catch (Exception error) {
+                    String message = error.getMessage() == null ? "Pairing failed" : error.getMessage();
+                    JSONObject response = new JSONObject().put("error", message);
+                    respond(output, 403, "Forbidden", "application/json", response.toString(), "");
+                }
+                return;
+            }
+            if (!pairing.authorized(headers.get("authorization"))) {
+                respond(output, 401, "Unauthorized", "application/json",
+                        "{\"error\":\"Connect with the MP01 pairing code\"}", "");
+                return;
+            }
+
             if ("GET".equals(method) && "/api/status".equals(path)) {
                 respond(output, 200, "OK", "application/json; charset=utf-8",
                         CallController.status(context).toString(), "");
@@ -160,20 +199,6 @@ final class HttpBridge {
             respond(output, 404, "Not Found", "text/plain", "Not found", "");
         } catch (Exception exception) {
             android.util.Log.w("PhnLnk", "Request failed", exception);
-        }
-    }
-
-    private boolean authenticated(String supplied) {
-        if (supplied == null || !supplied.startsWith("Basic ")) return false;
-        try {
-            String decoded = new String(
-                    java.util.Base64.getDecoder().decode(supplied.substring(6).trim()),
-                    StandardCharsets.UTF_8);
-            byte[] actual = decoded.getBytes(StandardCharsets.UTF_8);
-            byte[] expected = ("phnlnk:" + secret).getBytes(StandardCharsets.UTF_8);
-            return MessageDigest.isEqual(actual, expected);
-        } catch (IllegalArgumentException exception) {
-            return false;
         }
     }
 

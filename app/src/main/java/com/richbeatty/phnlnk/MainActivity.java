@@ -2,6 +2,14 @@ package com.richbeatty.phnlnk;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.Bitmap;
+import android.graphics.Color;
+import android.view.View;
+import android.widget.ImageView;
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.common.BitMatrix;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
@@ -25,8 +33,9 @@ import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private TextView status;
-    private TextView key;
-    private boolean keyShown;
+    private TextView pairCode;
+    private TextView pairInfo;
+    private ImageView qr;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
         @Override public void run() {
@@ -75,25 +84,55 @@ public final class MainActivity extends Activity {
             handler.postDelayed(this::updateStatus, 300);
         }));
 
-        root.addView(text("Pairing", 22));
-        root.addView(text("On a tablet or PC, open the host URL. Sign in with username phnlnk and this pairing key:", 15));
-        key = text("••••••••••••••••", 14);
-        key.setTextIsSelectable(true);
-        root.addView(key);
-        root.addView(button("Show or hide pairing key", () -> {
-            keyShown = !keyShown;
-            key.setText(keyShown ? Config.pairingKey(this) : "••••••••••••••••");
+        root.addView(text("Connect a tablet or PC", 22));
+        root.addView(text("Scan the QR code with your tablet, or type six digits on your PC.", 15));
+        root.addView(button("Pair a device", () -> {
+            if (!hasRequiredPermissions()) {
+                requestPhonePermissions();
+                return;
+            }
+            try {
+                startForegroundService(new Intent(this, GatewayService.class));
+                PairingManager.get(this).begin();
+                updateStatus();
+            } catch (Exception error) {
+                status.setText("Unable to start pairing: " + error.getMessage());
+            }
         }));
-        root.addView(button("Copy pairing key", () -> {
+        pairInfo = text("Tap Pair a device when you are ready.", 14);
+        root.addView(pairInfo);
+        pairCode = text("", 34);
+        pairCode.setTextIsSelectable(true);
+        root.addView(pairCode);
+        qr = new ImageView(this);
+        qr.setAdjustViewBounds(true);
+        root.addView(qr, new LinearLayout.LayoutParams(dp(220), dp(220)));
+        qr.setVisibility(View.GONE);
+        root.addView(button("Copy connection address", () -> {
+            String url = preferredUrl();
+            if (url == null) return;
             ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            clipboard.setPrimaryClip(ClipData.newPlainText("PhnLnk pairing key", Config.pairingKey(this)));
+            clipboard.setPrimaryClip(ClipData.newPlainText("PhnLnk address", url));
         }));
+        root.addView(button("Forget all paired devices", () ->
+                new AlertDialog.Builder(this)
+                        .setTitle("Disconnect all devices?")
+                        .setMessage("Previously connected tablets and computers will need a new code.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Disconnect", (dialog, which) -> {
+                            PairingManager.get(this).forgetAll();
+                            updateStatus();
+                        }).show()));
 
         root.addView(text("Important", 22));
         root.addView(text(
                 "This build controls the cellular dialer but does not relay speech. " +
                 "Use only on a trusted home network or across a private VPN. Never forward the host port publicly. " +
                 "For emergencies, use your phone directly, not this prototype.", 15));
+        if (hasRequiredPermissions()) {
+            try { startForegroundService(new Intent(this, GatewayService.class)); }
+            catch (Exception ignored) { }
+        }
     }
 
     @Override protected void onResume() {
@@ -158,6 +197,7 @@ public final class MainActivity extends Activity {
             sb.append("Host: ").append(GatewayService.isRunning() ? "ON" : "OFF");
             sb.append("\nCall: ").append(report.getString("callState"));
             sb.append("\nPhone permission: ").append(hasRequiredPermissions() ? "ready" : "not granted");
+            sb.append("\nPaired devices: ").append(PairingManager.get(this).count());
             sb.append("\nDevice: ").append(report.getString("model"));
             sb.append("\nAndroid: ").append(report.getString("android"));
             sb.append("\nCPU: ").append(report.getString("abi"));
@@ -166,9 +206,59 @@ public final class MainActivity extends Activity {
             sb.append("\n\nOpen in browser (on same trusted network or private VPN):");
             sb.append(networkAddresses());
             status.setText(sb.toString());
+            String code = PairingManager.get(this).current();
+            String url = preferredUrl();
+            if (code == null || url == null) {
+                pairCode.setText("");
+                pairInfo.setText("Tap Pair a device to generate a new code.");
+                qr.setVisibility(View.GONE);
+                qr.setTag(null);
+            } else {
+                pairInfo.setText("One-time code. Expires in 5 minutes:");
+                pairCode.setText(code);
+                qr.setVisibility(View.VISIBLE);
+                String qrValue = url + "/#pair=" + code;
+                if (!qrValue.equals(qr.getTag())) {
+                    qr.setImageBitmap(renderQr(qrValue));
+                    qr.setTag(qrValue);
+                }
+            }
         } catch (Exception exception) {
             status.setText("Status unavailable: " + exception.getMessage());
         }
+    }
+
+    private String preferredUrl() {
+        try {
+            Enumeration<NetworkInterface> all = NetworkInterface.getNetworkInterfaces();
+            String fallback = null;
+            while (all.hasMoreElements()) {
+                NetworkInterface device = all.nextElement();
+                if (!device.isUp() || device.isLoopback()) continue;
+                Enumeration<InetAddress> addresses = device.getInetAddresses();
+                while (addresses.hasMoreElements()) {
+                    InetAddress ip = addresses.nextElement();
+                    if (!(ip instanceof Inet4Address) || ip.isLinkLocalAddress() || ip.isLoopbackAddress()) continue;
+                    String link = "http://" + ip.getHostAddress() + ":" + Config.PORT;
+                    if (device.getName().startsWith("wlan")) return link;
+                    if (ip.isSiteLocalAddress()) fallback = link;
+                }
+            }
+            return fallback;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static Bitmap renderQr(String url) throws Exception {
+        BitMatrix matrix = new MultiFormatWriter().encode(url, BarcodeFormat.QR_CODE, 240, 240);
+        Bitmap bitmap = Bitmap.createBitmap(240, 240, Bitmap.Config.ARGB_8888);
+        for (int y = 0; y < 240; y++) {
+            for (int x = 0; x < 240; x++) {
+                bitmap.setPixel(x, y, matrix.get(x, y) ? Color.BLACK : Color.WHITE);
+            }
+        }
+        return bitmap;
     }
 
     private String networkAddresses() {

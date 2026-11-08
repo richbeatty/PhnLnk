@@ -54,7 +54,7 @@ public final class GatewayService extends Service {
         }
 
         try {
-            bridge = new HttpBridge(this, Config.pairingKey(this));
+            bridge = new HttpBridge(this);
             bridge.start();
             running = true;
         } catch (Exception exception) {
