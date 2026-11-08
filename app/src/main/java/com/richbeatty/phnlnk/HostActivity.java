@@ -2,8 +2,6 @@ package com.richbeatty.phnlnk;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.role.RoleManager;
-import android.content.pm.PackageManager;
 import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
