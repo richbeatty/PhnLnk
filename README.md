@@ -1,59 +1,67 @@
 # PhnLnk
 
-**One Android app, two roles.** The main phone keeps its cellular SIM and number. A secondary Android device can dial, browse local contacts, send keypad tones, receive incoming-call alerts, and control calls.
+Keep the SIM in your main Android phone and use a second Android device to control calls. The long-term goal is real incoming and outgoing cellular calls with two-way audio on the companion, using only the **two Android devices you already own**, no Shizuku installation, root, computer, Bluetooth adapter, or secondary carrier account.
 
-[Download call-control preview v0.4](https://github.com/richbeatty/PhnLnk## App-only audio research: no third device
+## Download
 
-**Product requirement:** The finished app must use only the existing SIM phone and the existing second Android device. No Linux bridge, extra computer, headset gateway, dongle, root, or separately installed Shizuku.
+[PhnLnk Android releases](https://github.com/richbeatty/PhnLnk/releases)
 
-The credible, still unproven route is an embedded loopback ADB client, inspired by [JemRec](https://github.com/jemcik/JemRec), which launches a shell-level helper from the phone itself after one-time Wireless Debugging pairing. [Voice SIP Agent](https://github.com/sparkcyf/android-voice-sip-agent) proves a two-way audio bridge at the same shell privilege level but currently uses Shizuku to start it. Integrating these techniques into one PhnLnk app would avoid a separate Shizuku installation, though a one-time Developer options and Wireless Debugging setup is still required.
+### Version 0.6.0: app-only audio compatibility test
 
-**Both recording the live cellular downlink and injecting audio into the cellular uplink must be confirmed on the actual host phone** before treating the approach as viable. MediaTek/Android support varies by device and firmware. This has not been verified on the user's phone.
+This release implements a significant first step toward an app-only voice relay:
 
-[Read the detailed app-only research and testing plan](docs/APP_ONLY_AUDIO_PLAN.md).
+- Built-in Android Wireless Debugging pairing (no Shizuku or computer).
+- One-time system pairing via a notification while the Android Settings pairing dialog remains open.
+- An Android-shell audio helper bundled with PhnLnk, built with D8.
+- Local-only helper that authenticates with a random per-installation key and never listens on the Wi-Fi network.
+- Live cellular voice capture measurement, with no recording saved.
+- User-approved short and quiet audio tone routed toward the cellular uplink, so the other caller can confirm whether it was audible.
+- Existing native Android dialer, contacts, favorites, in-call keypad support and one-time companion pairing.
 
-## Historical experimental Bluetooth/SIP branch (not the requested solution)
+**This release does not yet carry live voice to the second Android device.** Its purpose is to establish whether both audio directions are actually accessible on your specific host phone. A successful Android build does not establish hardware or firmware compatibility.
 
-The v0.5.0 APK contains a separate Linux Bluetooth-to-SIP experiment. It requires another computer and is **not a solution under the no-additional-hardware requirement**. The v0.5 voice path remains untested and is not recommended for this use case.
+### Test on the main phone
 
-## Basic pairing
+1. Install the APK and open PhnLnk. Choose **This phone has my SIM** if asked.
+2. Open **Set up and test call audio**.
+3. Open Android **Developer options** and enable USB debugging and Wireless debugging (on trusted home Wi-Fi).
+4. In PhnLnk choose **Show pairing notification**. Then in Android Wireless debugging tap **Pair device with pairing code**.
+5. Keep Android's six-digit pairing dialog open, swipe down the notification shade, and enter the code into PhnLnk's pairing notification. The app saves its own unique ADB identity for later sessions.
+6. Return to PhnLnk and choose **Start local audio test helper**. The result must say `READY:V1:shell UID 2000`.
+7. During an ordinary test call with a consenting person, press **Test receiving caller audio**. Ask the person to speak during the test. A nonzero RMS signal is useful evidence but is not by itself proof of the downlink source.
+8. While that person knows you will send a quiet beep, press **Send short test tone into call**. Ask if they actually heard it. Android accepting a routed AudioTrack does not guarantee audibility.
 
-On the phone with your SIM, choose **This phone has my SIM**, grant phone permissions, then **Pair a device**. On the secondary Android device, install the same PhnLnk app and choose **Connect to my other phone**, then scan the QR code or enter the displayed local Wi-Fi IP and six digits. Pairing is remembered until revoked. Desktop browsers can use the URL on the host phone.
+**Please note the exact results from both tests.** Only real downlink capture and audible uplink injection justify building the final realtime streaming part.
 
-PhnLnk works on Wi-Fi-only Android tablets too. All UI is device-neutral.
+### Current everyday controls
 
-## Current features
+- SIM phone: hosts your number, can dial, answer, end a call and optionally send in-call menu tones as the default Phone app.
+- Second Android device: dial pad, local contacts, favorites, recent requests, incoming-call alerts and remembered pairing.
+- PC browser: dial pad and authenticated call controls on a trusted local network.
 
-- Native Android dial pad, contacts, favorites and last call requests.
-- Desktop browser dial pad and saved pairing.
-- Dial, answer, hang up through the SIM phone over a trusted private LAN.
-- In-call DTMF after selecting PhnLnk as the host phone's default dialer.
-- Incoming call notifications, pairing recovery and user-controlled host background service.
-- Experimental Bluetooth/SIP components exist in v0.5 but require additional hardware. They are out of scope for the app-only target.
-- Voice gateway SIP credentials encrypted with a key kept in Android Keystore.
-- No Shizuku and no root needed on the Android devices.
+These controls still **do not send voice audio** to the companion. Do not rely on them as a telephone replacement. Never use PhnLnk for emergency calls.
 
-## Limitations and safety
+## Security
 
-- PhnLnk **cannot relay cellular audio directly between two stock Android phones**. The Bluetooth/SIP hardware route is optional and requires a nearby Linux computer.
-- Ordinary call control uses unencrypted HTTP on the local network. SIP prototype uses UDP/RTP on a private LAN. **Never expose either port to the public internet.** For off-LAN use, you would need a secure private network or properly hardened SIP/TLS and SRTP infrastructure.
-- Bluetooth hardware, SIP registration, voice quality, host wake behavior, background delivery, and call routing must all be verified on the user's devices before production use.
-- Voice service stays online using an opt-in microphone foreground service. Android can stop services after force-stop or battery management; reopening PhnLnk retries.
-- It is not an emergency calling service.
-- A generic Android app cannot override the system's choice to wake the main phone for incoming cellular calls.
+Enabling Android debugging is a significant permission change. PhnLnk's self-pairing uses the Android **shell** identity, not ordinary app privileges. This is needed because Android denies cellular audio access to ordinary third-party apps. Any ADB key trusted by your phone can run shell commands. Review and revoke authorized debugging keys from Android settings if you stop using the feature. Keep your phone on trusted Wi-Fi and use a secure screen lock.
 
-## Update signing
+The test helper binds to **127.0.0.1 only**, requires a random 256-bit per-install secret, and contains no remote shell command interface. The capture test calculates levels only and does not write call audio to storage. Injection plays only a quiet short test tone after a confirmation dialog. The normal PhnLnk browser call-control server is still HTTP on local network port 47321 and must never be exposed to the public internet.
 
-GitHub Actions can produce consistently signed releases if `PHNLNK_KEYSTORE_B64` and `PHNLNK_STORE_PASSWORD` repository secrets are configured with a permanent private signing key (PKCS12 alias `phnlnk`). Until then, preview builds use ephemeral debug keys and may require reinstalling rather than updating in place. **Never place signing keys in a public repo.** A previous debug-signed app cannot be updated by a differently signed APK.
+The helper is **not silently started or given audio access**. Press Start in the host UI, then separately approve each live-call test. Pairing is remembered, but shell helper restarts after reboot may still require Wireless Debugging access. Android's OS-level call UI may wake the host phone; PhnLnk does not force it to wake.
 
-## Build and licenses
+## Release signing
 
-Java 17, Android SDK 35, Gradle 8.9. Liblinphone's official Maven repository is included in settings.gradle.
+To allow future APKs to install over the previous ones, configure a permanent private PKCS12 signing key using encrypted GitHub Actions secrets `PHNLNK_KEYSTORE_B64` and `PHNLNK_STORE_PASSWORD`, alias `phnlnk`. Until that is done, GitHub Actions previews use temporary debug keys; Android can refuse update installs and require one uninstall. Do not commit the keystore to a public repo.
+
+## Source and build
+
+Requires Java 17, Android SDK 35, Gradle 8.9, and the SDK D8 build tool. The CI workflow compiles `shellprobe/src` to an isolated DEX asset before building the Android APK.
 
 ```sh
-gradle :app:assembleDebug
+bash shellprobe/build.sh
+gradle --no-daemon :app:assembleDebug
 ```
 
-PhnLnk's original code is MIT-licensed. The optional integrated Liblinphone SIP engine is AGPLv3, so distribution of the **combined application** is subject to AGPLv3 terms and source availability. See [third-party notices](docs/THIRD_PARTY.md) and the project's public source.
+[Technical app-only research](docs/APP_ONLY_AUDIO_PLAN.md) | [Audio test plan](docs/AUDIO_TESTING.md)
 
-This is an experimental personal app project, not an audited production telecom product.
+PhnLnk's original code is MIT. The embedded ADB library from MuntashirAkon is available under Apache-2.0 or GPL-3.0-or-later. Its use here is under Apache-2.0. Bouncy Castle, Conscrypt, and ZXing have their own notices. The archived Bluetooth SIP experiment is no longer part of the APK; see the historical research only.

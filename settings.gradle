@@ -11,9 +11,8 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven {
-            name = 'Linphone official SDK'
-            url = uri('https://download.linphone.org/maven_repository')
-            content { includeGroup('org.linphone.minimal') }
+            url = uri('https://jitpack.io')
+            content { includeGroup('com.github.MuntashirAkon') }
         }
     }
 }

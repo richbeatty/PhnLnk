@@ -72,6 +72,10 @@ public final class HostActivity extends Activity {
         permissionsButton = button("Allow phone permissions", this::requestPhonePermissions);
         root.addView(permissionsButton);
 
+        root.addView(text("App-only cellular audio", 22));
+        root.addView(text("New: Test live call audio with a built-in Android shell helper. No extra device, root or Shizuku. One-time Wireless Debugging pairing is required. Real voice on the companion is NOT enabled until this phone passes both audio tests.", 13));
+        root.addView(button("Set up and test call audio", () ->
+                startActivity(new Intent(this, HostAudioActivity.class))));
         root.addView(text("Call features", 22));
         root.addView(text("To send keypad tones such as press 1 during a call, PhnLnk needs to be selected as your default Phone app. The regular system dialer will be replaced until you change it back.", 13));
         root.addView(button("Enable in-call keypad", () -> new AlertDialog.Builder(this)

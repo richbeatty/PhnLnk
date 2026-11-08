@@ -12,14 +12,13 @@ android {
         applicationId 'com.richbeatty.phnlnk'
         minSdk 30
         targetSdk 34
-        versionCode 7
-        versionName '0.5.0'
+        versionCode 8
+        versionName '0.6.0'
     }
 
     signingConfigs {
         persistent {
-            if (signingFile != null && !signingFile.isEmpty() &&
-                    signingPassword != null && !signingPassword.isEmpty()) {
+            if (signingFile && signingPassword) {
                 storeFile file(signingFile)
                 storePassword signingPassword
                 keyAlias 'phnlnk'
@@ -28,14 +27,10 @@ android {
             }
         }
     }
-
     buildTypes {
         release {
             minifyEnabled false
-            if (signingFile != null && !signingFile.isEmpty() &&
-                    signingPassword != null && !signingPassword.isEmpty()) {
-                signingConfig signingConfigs.persistent
-            }
+            if (signingFile && signingPassword) signingConfig signingConfigs.persistent
         }
     }
     compileOptions {
@@ -46,5 +41,8 @@ android {
 
 dependencies {
     implementation 'com.google.zxing:core:3.5.3'
-    implementation 'org.linphone.minimal:linphone-sdk-android:5.4.129'
+    implementation 'com.github.MuntashirAkon:libadb-android:3.1.1'
+    implementation 'org.bouncycastle:bcprov-jdk15to18:1.81'
+    implementation 'org.bouncycastle:bcpkix-jdk15to18:1.81'
+    implementation 'org.conscrypt:conscrypt-android:2.7.0'
 }

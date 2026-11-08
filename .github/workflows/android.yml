@@ -21,13 +21,18 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Check Android SDK
-        run: test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+      - name: Check Android SDK and D8
+        run: |
+          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+          find "$ANDROID_HOME/build-tools" -name d8 -type f | head -n 3
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Build local shell-UID audio helper
+        run: bash shellprobe/build.sh
 
       - name: Prepare stable signing credentials if configured
         id: signing
@@ -44,7 +49,7 @@ jobs:
             echo "signed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build Android APK
+      - name: Compile PhnLnk for Android
         run: |
           if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
             gradle --no-daemon :app:assembleRelease
@@ -54,50 +59,56 @@ jobs:
             cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-Android.apk
           fi
 
-      - name: Record signing status for the release
+      - name: Verify probe is actually embedded
+        run: |
+          unzip -l PhnLnk-Android.apk | grep -F 'assets/phnlnk-probe.jar'
+          unzip -t PhnLnk-Android.apk | tail -n 1
+
+      - name: Save release notes
         run: |
           cat > notes.md <<'EOF'
-          Experimental Bluetooth voice bridge preview v0.5.0:
-          * NEW: optional embedded SIP client for real two-way voice on a secondary Android device.
-          * Requires a nearby Linux Bluetooth HFP-to-SIP gateway such as Asterisk chan_mobile.
-          * Calls still use the original SIM number through the main phone's Bluetooth hands-free route.
-          * Optional voice mode with microphone/speaker, answer/hangup and SIP keypad tones.
-          * Keystore-encrypted SIP credentials and foreground SIP registration.
-          * Existing direct call-control mode remains available without extra hardware.
-          * No Shizuku or root on either Android phone.
+          ## PhnLnk 0.6.0, in-app cellular audio feasibility test
 
-          IMPORTANT:
-          * This is NOT an app-only cellular audio bypass.
-          * You need Linux Bluetooth gateway hardware and a working SIP server on a trusted LAN.
-          * The host phone and Bluetooth gateway compatibility have not been tested.
-          * Do not open SIP/RTP or PhnLnk's call-control HTTP port to the public internet.
-          * Never use experimental PhnLnk for emergency calls.
-          * Liblinphone is AGPLv3; this combined APK must meet AGPLv3 obligations.
-          * Source: https://github.com/richbeatty/PhnLnk
-          * Setup: https://github.com/richbeatty/PhnLnk/blob/main/docs/VOICE_SETUP.md
+          - Same Android host and companion APK, without extra audio hardware or Shizuku.
+          - Host: new guided Wireless Debugging pairing through an Android notification.
+          - Host: uses an embedded ADB client to start a local shell-UID helper.
+          - Host: tests live cellular audio capture without saving or transmitting a recording.
+          - Host: opt-in quiet test tone routed toward the cellular uplink for a consenting test call.
+          - Existing dial pad, contacts, saved pairing, and call controls remain.
+
+          IMPORTANT: this is NOT a finished two-way remote calling app.
+          The host has not yet been tested for both audio directions on the MP01.
+          The secondary Android device still cannot carry the call audio.
+          A one-time Developer options + USB and Wireless Debugging pairing is required.
+
+          The helper binds only to 127.0.0.1 with a random local secret.
+          Use on trusted Wi-Fi. Leave port 47321 off the public internet.
+          Wireless Debugging enables ADB access to previously authorized devices.
+          Test only on calls you control and with the other person's consent.
+          Never use PhnLnk for emergency calls.
           EOF
           if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
             echo "" >> notes.md
-            echo "Signing: persistent release key. Later releases using this key should update in place." >> notes.md
+            echo "Signing: permanent signing key configured. Subsequent same-key versions can update in place." >> notes.md
           else
             echo "" >> notes.md
-            echo "Signing: temporary debug key. This preview cannot reliably update previous debug APKs." >> notes.md
-            echo "Add PHNLNK_KEYSTORE_B64 and PHNLNK_STORE_PASSWORD repository secrets for persistent signing." >> notes.md
+            echo "Signing: temporary debug key. Install over a previous release may FAIL due to certificate mismatch." >> notes.md
+            echo "Permanent upgrade signing requires PHNLNK_KEYSTORE_B64 and PHNLNK_STORE_PASSWORD in GitHub Actions secrets." >> notes.md
           fi
 
-      - name: Save APK in Actions
+      - name: Upload Android APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PhnLnk-Android
+          name: PhnLnk-Android-debug
           path: PhnLnk-Android.apk
           if-no-files-found: error
 
-      - name: Publish GitHub release
+      - name: Publish preview APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.5.0
+          tag_name: v0.6.0
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.5.0 call controls preview
+          name: PhnLnk v0.6.0 app-only audio capability test
           prerelease: true
           make_latest: true
           fail_on_unmatched_files: true

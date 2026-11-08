@@ -80,11 +80,6 @@ public final class ClientActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (VoiceCredentials.enabled(this) &&
-                checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            try { startForegroundService(new Intent(this, SipVoiceService.class)); }
-            catch (Exception ignored) { }
-        }
         ui.removeCallbacks(poll);
         ui.post(poll);
         if (RemoteClient.isPaired(this)) startAlertsIfEnabled();
@@ -192,10 +187,8 @@ public final class ClientActivity extends Activity {
         root.addView(tabContent);
         selectTab("Dial");
 
-        root.addView(text("Voice calls", 19));
-        root.addView(text("With a Bluetooth-to-SIP bridge on your home network, you can hear and speak from this device. No root or Shizuku required on the main phone.", 13));
-        root.addView(button("Set up voice calling", () ->
-                startActivity(new Intent(this, VoiceBridgeActivity.class))));
+        root.addView(text("Live audio research",19));
+        root.addView(text("The host is testing whether Android permits live call audio without root, Shizuku, or extra hardware. Calling here still controls the host phone only.",13));
         root.addView(text("Incoming call alerts", 19));
         alerts = button("Enable alerts", () -> toggleAlerts());
         root.addView(alerts);
@@ -440,33 +433,6 @@ public final class ClientActivity extends Activity {
     }
 
     private void command(String action, String phone) {
-        SipVoiceEngine voice = SipVoiceEngine.current();
-        if (voice != null && voice.isRegistered()) {
-            try {
-                if ("dial".equals(action)) {
-                    voice.dial(phone);
-                    remember(phone);
-                    startActivity(new Intent(this, VoiceBridgeActivity.class));
-                    return;
-                }
-                if ("dtmf".equals(action) && voice.isInCall()) {
-                    voice.sendTone(phone.charAt(0));
-                    return;
-                }
-                if ("answer".equals(action) && voice.isIncoming()) {
-                    voice.answer();
-                    startActivity(new Intent(this, VoiceBridgeActivity.class));
-                    return;
-                }
-                if ("end".equals(action) && voice.isInCall()) {
-                    voice.hangup();
-                    return;
-                }
-            } catch (Exception error) {
-                if (note != null) note.setText(error.getMessage());
-                return;
-            }
-        }
         if (note != null) note.setText("dtmf".equals(action) ? "Sending keypad tone..." : "Sending...");
         worker.execute(() -> {
             try {
@@ -495,14 +461,6 @@ public final class ClientActivity extends Activity {
                     String call = state.optString("callState","unknown");
                     activeState = call;
                     dtmfReady = state.optBoolean("dtmfReady", false);
-                    SipVoiceEngine voice = SipVoiceEngine.current();
-                    if (voice != null && voice.isRegistered()) {
-                        if (voice.isInCall()) activeState = "active";
-                        else if (voice.isIncoming()) activeState = "ringing";
-                        dtmfReady = voice.isInCall();
-                        if (voice.isInCall() || voice.isIncoming()) connection.setText(
-                                "Voice bridge connected. " + voice.callStatus());
-                    }
                     connection.setText("Connected to " + state.optString("model","your phone")
                             + "\nCall status: " + call
                             + ("ringing".equals(call) ? "\nIncoming call on your main phone" : ""));
@@ -512,20 +470,10 @@ public final class ClientActivity extends Activity {
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    SipVoiceEngine voice = SipVoiceEngine.current();
-                    if (voice != null && voice.isRegistered()) {
-                        if (connection != null) connection.setText("Voice bridge online. Main phone control connection offline.");
-                        if (dial != null) dial.setEnabled(!voice.isInCall() && !voice.isIncoming());
-                        if (answer != null) answer.setEnabled(voice.isIncoming());
-                        if (end != null) end.setEnabled(voice.isInCall());
-                        activeState = voice.isInCall() ? "active" : voice.isIncoming() ? "ringing" : "idle";
-                        dtmfReady = voice.isInCall();
-                    } else {
-                        if (connection != null) connection.setText("Offline. Check the main phone and Wi-Fi.");
-                        if (dial != null) dial.setEnabled(false);
-                        if (answer != null) answer.setEnabled(false);
-                        if (end != null) end.setEnabled(false);
-                    }
+                    if (connection != null) connection.setText("Offline. Check the main phone and Wi-Fi.");
+                    if (dial != null) dial.setEnabled(false);
+                    if (answer != null) answer.setEnabled(false);
+                    if (end != null) end.setEnabled(false);
                 });
             } finally {
                 polling = false;
