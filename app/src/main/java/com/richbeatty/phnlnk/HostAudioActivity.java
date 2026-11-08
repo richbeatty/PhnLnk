@@ -1,174 +1,278 @@
 package com.richbeatty.phnlnk;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
-import android.telephony.TelephonyManager;
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.Manifest;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * No hidden "working voice" indicator: tests explicitly distinguish
- * capturing signal from proving the caller is audible, and route selection
- * from a caller confirming the injected test tone.
+ * Guided, OPTIONAL setup. Android must still authorize wireless ADB and
+ * the user must enter the Android pairing code. This is an audio feasibility
+ * probe, NOT the completed two-way cellular audio feature.
  */
 public final class HostAudioActivity extends Activity {
+    private static final int NOTIFICATION_PERMISSION = 481;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private TextView status;
-    private Button capture;
-    private Button inject;
-    private Button launch;
-    private volatile boolean busy;
+
+    private TextView connection, details, testResult;
+    private Button begin, retry, stop, capture, inject;
+    private boolean busy;
+    private final Runnable refresh = new Runnable() {
+        @Override public void run() {
+            refreshState();
+            main.postDelayed(this, 1700);
+        }
+    };
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        ScrollView scroll = new ScrollView(this);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int space = dp(18);
-        root.setPadding(space,space,space,space);
-        scroll.addView(root);
-        setContentView(scroll);
+        PhoneUi.screen(this);
+        ScrollView scroller = new ScrollView(this);
+        scroller.setBackgroundColor(PhoneUi.BG);
+        LinearLayout root = PhoneUi.column(this);
+        root.setPadding(dp(19),dp(24),dp(19),dp(24));
+        scroller.addView(root);
+        setContentView(scroller);
 
-        root.addView(text("PhnLnk audio test", 28));
-        root.addView(text("One phone, no extra hardware or Shizuku. This checks whether your phone's software permits live cellular audio capture and injection.",14));
+        root.addView(PhoneUi.label(this,"Audio access",28,PhoneUi.INK,true));
+        root.addView(PhoneUi.label(this,
+                "A guided compatibility test for your existing phone. No computer, extra hardware, root, or Shizuku.",
+                14,PhoneUi.MUTED,false),PhoneUi.margins(this,7,14));
 
-        status = text("",15);
-        root.addView(status);
-        root.addView(text("1. Enable Android Wireless Debugging",20));
-        root.addView(text("Developer options > USB debugging and Wireless debugging. Use a trusted Wi-Fi network. This grants a local Android shell permission and has security implications. You can revoke the pairing in Wireless debugging settings.",14));
-        root.addView(button("Open Developer options", () -> {
-            try {startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));}
-            catch (Exception e) {status.setText("Open Settings > System > Developer options manually.");}
-        }));
+        LinearLayout statusCard = PhoneUi.card(this);
+        statusCard.addView(PhoneUi.label(this,"CONNECTION STATUS",11,PhoneUi.MUTED,true));
+        connection = PhoneUi.label(this,"Checking...",19,PhoneUi.INK,true);
+        details = PhoneUi.label(this,"",14,PhoneUi.MUTED,false);
+        statusCard.addView(connection,PhoneUi.margins(this,9,4));
+        statusCard.addView(details);
+        root.addView(statusCard);
 
-        root.addView(text("2. Pair PhnLnk with this phone",20));
-        root.addView(text("Tap the button, then in Settings > Wireless debugging choose 'Pair device with pairing code'. Leave that dialog open. Swipe down the notification shade and enter its six digits in the PhnLnk notification. This is one-time pairing.",14));
-        root.addView(button("Show pairing notification", () -> {
-            try {
-                Intent start = new Intent(this, AudioPairService.class).setAction(AudioPairService.START);
-                startForegroundService(start);
-                status.setText("Pairing notification enabled. Open the Android pairing-code dialog.");
-            } catch (Exception e) {
-                status.setText("Could not start pairing: " + safe(e.getMessage()));
-            }
-        }));
+        LinearLayout setup = PhoneUi.card(this);
+        setup.addView(PhoneUi.label(this,"Set up once",23,PhoneUi.INK,true));
+        setup.addView(PhoneUi.label(this,
+                "1. Enable Developer options and Wireless Debugging in Android Settings.",
+                14,PhoneUi.INK,false),PhoneUi.margins(this,12,9));
+        setup.addView(PhoneUi.label(this,
+                "2. In Wireless Debugging, select \"Pair device with pairing code\".",
+                14,PhoneUi.INK,false),PhoneUi.margins(this,0,9));
+        setup.addView(PhoneUi.label(this,
+                "3. Leave the pairing dialog open. Swipe down your notifications and enter its six digits in the PhnLnk notification. Android approves the pairing.",
+                14,PhoneUi.INK,false),PhoneUi.margins(this,0,15));
+        setup.addView(PhoneUi.label(this,
+                "PhnLnk remembers the paired identity and retries when Android permits it. If Wireless Debugging turns off, only Android Settings can turn it back on.",
+                13,PhoneUi.MUTED,false),PhoneUi.margins(this,0,15));
 
-        root.addView(text("3. Check the shell audio helper",20));
-        root.addView(text("After pairing, return here. This installs only PhnLnk's own local test helper and checks its Android shell identity. The helper binds to 127.0.0.1 and needs a random secret. It does not store or send any call audio.",14));
-        launch = button("Start local audio test helper", () -> runTask("Starting helper", () -> {
-            String answer = new HostAdb(this).startProbe();
-            return "Local helper: " + answer;
-        }));
-        root.addView(launch);
+        begin = mainButton("Start guided setup", this::requestGuidedSetup);
+        setup.addView(begin);
+        retry = secondaryButton("Retry saved connection", this::retryConnection);
+        setup.addView(retry,PhoneUi.margins(this,10,0));
+        stop = secondaryButton("Turn off automatic audio access", this::confirmDisable);
+        setup.addView(stop,PhoneUi.margins(this,10,0));
+        setup.addView(secondaryButton("Open Android Developer options", this::openSettings),
+                PhoneUi.margins(this,10,0));
+        root.addView(setup,PhoneUi.margins(this,13,0));
 
-        root.addView(text("4. Test during a real call",20));
-        root.addView(text("Call a trusted person or automated line using the normal Phone app and keep the call connected. These tests process only live samples and never save a recording. For the tone test, inform the other person first.",14));
-        capture = button("Test receiving caller audio", () -> {
-            new AlertDialog.Builder(this)
-                    .setTitle("Check live call audio?")
-                    .setMessage("This samples about two seconds of active cellular call audio to measure signal level. It does not save the sound. Only run this on a call you are authorized to test.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Test", (d,w) -> runTask("Testing downlink", () ->
-                            AudioProbeClient.request(this, "CAPTURE")))
-                    .show();
-        });
-        root.addView(capture);
+        LinearLayout test = PhoneUi.card(this);
+        test.addView(PhoneUi.label(this,"Test cellular audio",22,PhoneUi.INK,true));
+        test.addView(PhoneUi.label(this,
+                "After the helper reports ready, use your normal Phone app to call a consenting person. These tests do not save recordings.",
+                14,PhoneUi.MUTED,false),PhoneUi.margins(this,10,15));
+        capture = secondaryButton("Check incoming call sound", () ->
+                new AlertDialog.Builder(this)
+                        .setTitle("Measure call audio?")
+                        .setMessage("This checks about two seconds of live audio level during a call. No audio is saved. Only proceed with the other caller's permission.")
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("Test",(dialog,which)->
+                                runTest("CAPTURE","Measuring call audio..."))
+                        .show());
+        test.addView(capture);
+        inject = secondaryButton("Send quiet audio test tone", () ->
+                new AlertDialog.Builder(this)
+                        .setTitle("Play a test tone into the call?")
+                        .setMessage("First tell the person on the call that you are sending a quiet half-second beep. Their confirmation is required to prove that it reached the caller.")
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("Play tone",(dialog,which)->
+                                runTest("INJECT","Sending test tone..."))
+                        .show());
+        test.addView(inject,PhoneUi.margins(this,9,0));
+        testResult = PhoneUi.label(this,"No audio test has been run.",14,PhoneUi.INK,false);
+        testResult.setTextIsSelectable(true);
+        test.addView(testResult,PhoneUi.margins(this,13,0));
+        root.addView(test,PhoneUi.margins(this,13,0));
 
-        inject = button("Send short test tone into call", () -> {
-            new AlertDialog.Builder(this)
-                    .setTitle("Send a short test tone?")
-                    .setMessage("Confirm the other caller agrees to hear a quiet half-second beep. This tests the cellular audio uplink route. Android may report the track is routed without actually transmitting the tone. Ask the other person what they heard.")
-                    .setNegativeButton("Cancel", null)
-                    .setPositiveButton("Send tone", (d,w) -> runTask("Testing uplink", () ->
-                            AudioProbeClient.request(this, "INJECT")))
-                    .show();
-        });
-        root.addView(inject);
-
-        root.addView(text("What the results mean",20));
-        root.addView(text("READY means the local helper launched as Android shell. CAPTURE with a nonzero level means audio samples arrived, but not necessarily the remote caller. INJECT means the audio route accepted a test tone, not that the caller heard it. Real two-way conversation requires both tests to work, then a secure bridge to your tablet.",13));
-        root.addView(text("PhnLnk does not yet relay your voice to the secondary device. This screen exists to identify whether the required audio path actually works on this phone before claiming it does. Do not use experimental calling for emergencies.",13));
-        updateStatus("Not tested. No extra hardware required.");
+        root.addView(PhoneUi.label(this,
+                "Important: A successful pairing or helper test does not mean the second Android device can carry cellular audio. Actual two-way calling still needs an audio bridge and testing on this phone. Never use this prototype for emergency calls.",
+                13,PhoneUi.MUTED,false),PhoneUi.margins(this,14,0));
+        refreshState();
     }
 
-    @Override protected void onResume() {
-        super.onResume();
-        if (!busy && status != null) {
-            boolean paired = getSharedPreferences("phnlnk_audio_bootstrap", MODE_PRIVATE)
-                    .getBoolean("adb_paired", false);
-            if (paired) status.setText("Android pairing saved. Press Start local audio test helper.");
+    private void requestGuidedSetup() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+                        PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    NOTIFICATION_PERMISSION);
+            return;
+        }
+        beginGuidedSetup();
+    }
+
+    private void beginGuidedSetup() {
+        AudioAccessState.enable(this);
+        AudioAccessState.set(this,AudioAccessState.PAIRING,
+                "Waiting for Android's six-digit code in the PhnLnk notification.");
+        try {
+            startForegroundService(new Intent(this,AudioPairService.class)
+                    .setAction(AudioPairService.START));
+            main.postDelayed(this::openSettings,350);
+        } catch (Exception error) {
+            AudioAccessState.set(this,AudioAccessState.ERROR,
+                    "Couldn't start the pairing notification: " + safe(error.getMessage()));
+            refreshState();
         }
     }
 
-    private interface Work {String run() throws Exception;}
+    private void openSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+        } catch (Exception error) {
+            details.setText("Open Android Settings > System > Developer options manually.");
+        }
+    }
 
-    private void runTask(String title, Work task) {
-        if (busy) return;
+    private void retryConnection() {
+        if (!AudioAccessState.isPaired(this)) {
+            details.setText("First complete the one-time pairing through Android settings.");
+            return;
+        }
+        AudioAccessState.enable(this);
+        AudioAccessState.set(this,AudioAccessState.CONNECTING,"Retrying saved Android pairing...");
+        try {
+            startForegroundService(new Intent(this,AudioAccessService.class)
+                    .setAction(AudioAccessService.ACTION_RETRY));
+        } catch (Exception error) {
+            AudioAccessState.set(this,AudioAccessState.ERROR,
+                    "Android blocked the reconnect service. Reopen PhnLnk and try again.");
+        }
+        refreshState();
+    }
+
+    private void confirmDisable() {
+        new AlertDialog.Builder(this)
+                .setTitle("Turn off automatic reconnect?")
+                .setMessage("PhnLnk will stop its helper and automatic reconnect attempts. Android's stored debugging authorization remains until you revoke it in Developer options > Wireless debugging > Paired devices.")
+                .setNegativeButton("Cancel",null)
+                .setPositiveButton("Turn off",(dialog,which)->{
+                    AudioAccessState.disable(this);
+                    stopService(new Intent(this,AudioAccessService.class));
+                    worker.execute(() -> {
+                        try {AudioProbeClient.request(this,"STOP");}
+                        catch (Exception ignored) { }
+                    });
+                    refreshState();
+                }).show();
+    }
+
+    private void runTest(String command,String message) {
+        if (busy || !AudioAccessState.READY.equals(AudioAccessState.state(this))) {
+            testResult.setText("First connect the local audio helper.");
+            return;
+        }
         busy = true;
-        updateStatus(title + "...");
-        setEnabled(false);
+        capture.setEnabled(false);
+        inject.setEnabled(false);
+        testResult.setText(message);
         worker.execute(() -> {
             String result;
-            try {
-                result = task.run();
-            } catch (Exception error) {
-                result = "TEST FAILED: " + safe(error.getMessage());
-            }
+            try { result = AudioProbeClient.request(this,command); }
+            catch (Exception e) {result = "Test failed: " + safe(e.getMessage());}
             final String done = result;
             main.post(() -> {
                 busy = false;
-                updateStatus(done);
-                setEnabled(true);
+                testResult.setText(done);
+                refreshState();
             });
         });
     }
 
-    private void updateStatus(String message) {
-        if (status != null) status.setText(message);
+    @Override protected void onResume() {
+        super.onResume();
+        if (AudioAccessState.autoReconnect(this) && AudioAccessState.isPaired(this)) {
+            // A foreground activity can restart the opt-in service after
+            // Android has killed it. No repeated pairing code is requested.
+            try {
+                startForegroundService(new Intent(this,AudioAccessService.class)
+                        .setAction(AudioAccessService.ACTION_RETRY));
+            } catch (Exception ignored) { }
+        }
+        main.removeCallbacks(refresh);
+        main.post(refresh);
     }
 
-    private void setEnabled(boolean enabled) {
-        if (capture != null) capture.setEnabled(enabled);
-        if (inject != null) inject.setEnabled(enabled);
-        if (launch != null) launch.setEnabled(enabled);
+    @Override protected void onPause() {
+        main.removeCallbacks(refresh);
+        super.onPause();
     }
 
-    private TextView text(String value, int size) {
-        TextView text = new TextView(this);
-        text.setText(value);
-        text.setTextSize(size);
-        text.setPadding(0,dp(8),0,dp(8));
-        return text;
+    @Override public void onRequestPermissionsResult(int request,
+            String[] permissions,int[] results) {
+        super.onRequestPermissionsResult(request,permissions,results);
+        if (request != NOTIFICATION_PERMISSION) return;
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED)
+            beginGuidedSetup();
+        else details.setText("Notification permission is required so you can enter the pairing code while Android Settings stays open.");
     }
 
-    private Button button(String title, Runnable handler) {
-        Button button = new Button(this);
-        button.setText(title);
-        button.setAllCaps(false);
-        button.setOnClickListener(v->handler.run());
+    private void refreshState() {
+        if (connection == null) return;
+        connection.setText(AudioAccessState.display(this));
+        details.setText(AudioAccessState.message(this));
+        boolean paired = AudioAccessState.isPaired(this);
+        boolean enabled = AudioAccessState.autoReconnect(this);
+        begin.setVisibility(paired ? android.view.View.GONE : android.view.View.VISIBLE);
+        retry.setVisibility(paired ? android.view.View.VISIBLE : android.view.View.GONE);
+        stop.setVisibility(enabled ? android.view.View.VISIBLE : android.view.View.GONE);
+        boolean ready = enabled && AudioAccessState.READY.equals(AudioAccessState.state(this));
+        if (!busy) {
+            capture.setEnabled(ready);
+            inject.setEnabled(ready);
+        }
+    }
+
+    private Button mainButton(String title,Runnable action) {
+        Button button = PhoneUi.button(this,title,PhoneUi.CARD,PhoneUi.FOREST,Color.TRANSPARENT);
+        button.setOnClickListener(v->action.run());
         return button;
     }
 
-    private static String safe(String error) {
+    private Button secondaryButton(String title,Runnable action) {
+        Button button = PhoneUi.button(this,title,PhoneUi.FOREST,PhoneUi.PALE,Color.TRANSPARENT);
+        button.setOnClickListener(v->action.run());
+        return button;
+    }
+
+    private String safe(String error) {
         if (error == null) return "Unknown error";
-        return error.length() <= 200 ? error : error.substring(0,200);
+        return error.length() > 180 ? error.substring(0,180) : error;
     }
 
     private int dp(int value) {
-        return Math.round(value*getResources().getDisplayMetrics().density);
+        return PhoneUi.dp(this,value);
     }
 
     @Override protected void onDestroy() {

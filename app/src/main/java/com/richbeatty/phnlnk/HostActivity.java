@@ -119,6 +119,15 @@ public final class HostActivity extends Activity {
         }));
         root.addView(pairCard,PhoneUi.margins(this,13,0));
 
+        LinearLayout audioCard=PhoneUi.card(this);
+        audioCard.addView(PhoneUi.label(this,"Optional audio access",20,PhoneUi.INK,true));
+        audioCard.addView(PhoneUi.label(this,
+                "Pair once with Android Wireless Debugging and let PhnLnk retry automatically. This is an experimental compatibility test, not working remote voice audio.",
+                13,PhoneUi.MUTED,false),PhoneUi.margins(this,9,13));
+        audioCard.addView(secondary("Guided audio setup",()->
+                startActivity(new Intent(this,HostAudioActivity.class))));
+        root.addView(audioCard,PhoneUi.margins(this,13,0));
+
         LinearLayout settings=PhoneUi.card(this);
         settings.addView(PhoneUi.label(this,"Manage connection",19,PhoneUi.INK,true));
         settings.addView(secondary("Resume connection",()->{
@@ -174,6 +183,12 @@ public final class HostActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        if (AudioAccessState.autoReconnect(this) && AudioAccessState.isPaired(this)) {
+            try {
+                startForegroundService(new Intent(this,AudioAccessService.class)
+                        .setAction(AudioAccessService.ACTION_RETRY));
+            } catch (Exception ignored) { }
+        }
         handler.removeCallbacks(refresh);
         handler.post(refresh);
     }
@@ -237,6 +252,7 @@ public final class HostActivity extends Activity {
             String link = preferredUrl();
             status.setText("Host: " + (GatewayService.isRunning() ? "Ready" : "Off")
                     + "    Call: " + report.getString("callState")
+                    + "\nAudio test: " + AudioAccessState.display(this)
                     + "\nConnected devices: " + PairingManager.get(this).count()
                     + "\n\nFor a PC browser: "
                     + (link == null ? "Connect this phone to Wi-Fi" : link));

@@ -32,6 +32,7 @@ public final class AudioProbe {
     private static final int CAPTURE_MS = 1800;
     private static final int TONE_MS = 550;
     private final byte[] secret;
+    private volatile boolean running = true;
 
     private AudioProbe(byte[] key) {
         secret = key;
@@ -50,7 +51,7 @@ public final class AudioProbe {
         try (ServerSocket server = new ServerSocket(PORT, 2,
                 InetAddress.getByName("127.0.0.1"))) {
             server.setSoTimeout(0);
-            while (true) {
+            while (probe.running) {
                 try (Socket socket = server.accept()) {
                     socket.setSoTimeout(7000);
                     probe.handle(socket);
@@ -76,6 +77,7 @@ public final class AudioProbe {
             case "PING": result = "READY:V1:shell UID " + Process.myUid(); break;
             case "CAPTURE": result = captureAmplitude(); break;
             case "INJECT": result = injectTestTone(); break;
+            case "STOP": result = "STOPPED"; running = false; break;
             default: result = "ERROR:Unknown request";
         }
         output.writeUTF(result);

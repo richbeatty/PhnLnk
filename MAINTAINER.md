@@ -12,7 +12,7 @@ A Beeper-simple Android companion that makes and answers **real cellular calls**
 | --- | --- |
 | Existing cellular account | Keep the original SIM, number and carrier. No number porting or paid replacement calling account. |
 | Devices | Only the original host phone and an existing secondary Android device. No third computer, headset bridge, dongle, ESP32, SIP gateway or other hardware. |
-| Android permissions | No root, Shizuku app, Wireless Debugging, Developer options, ADB pairing, or default Phone app role as a requirement for the product. |
+| Android permissions | No root or Shizuku. No default Phone app role. Basic call control must not require debugging. The owner now permits one explicit, guided Wireless Debugging and six-digit ADB pairing for an optional experimental audio feasibility helper. |
 | User experience | Install PhnLnk on both devices, pair once, remain paired until explicitly disconnected. No complex technical administration. |
 | Host | Leave the screen off during remote calls when allowed by Android, without PhnLnk waking it or taking over the normal dialer. |
 | Calls | Outgoing, incoming, contact dialing, IVR keypad, hangup, ring alerts and genuine two-way audio on secondary device, including away from home. |
@@ -26,10 +26,18 @@ The user would consider making PhnLnk the default Phone app **only if** that ena
 ## Current reality, not roadmap promises
 
 - **Working in existing prototype:** Local network outbound call request, local paired Android companion, contact search, favorites, incoming call status, answer/end call controls. These were compiled, and outgoing dialing was reported working by the user. Other features have not been comprehensively hardware tested.
-- **Missing:** Two-way cellular call audio through the secondary device and an internet-safe relay. Default stock Android 14 apps cannot capture/inject cellular call audio through public APIs. A shell-level workaround also violates the user's explicit no-debugging rule. See [Android audio input sharing](https://developer.android.com/media/platform/sharing-audio-input) and [MediaRecorder VOICE_CALL](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource).
+- **Missing:** Two-way cellular call audio through the secondary device and an internet-safe relay. Default stock Android 14 apps cannot capture/inject cellular call audio through public APIs. The user has now approved guided one-time Wireless Debugging pairing ONLY for an optional experimental helper. This does not mean cellular audio capture or injection will work. See [Android audio input sharing](https://developer.android.com/media/platform/sharing-audio-input) and [MediaRecorder VOICE_CALL](https://developer.android.com/reference/android/media/MediaRecorder.AudioSource).
 - **IVR keypad:** Ordinary keypad entry can work before placing a call. Controlling DTMF during another app's cellular call requires call control access generally granted to the default Phone role. This is not a supported requirement-free feature. Do not prompt for the default role.
-- **Previous experimental variants:** v0.5's Linux Bluetooth-to-SIP gateway and v0.6's self-ADB helper violate the product constraints. Keep them in history for research, not in first-run flow and not as claims of meeting the user requirements.
+- **Previous experimental variants:** v0.5's Linux Bluetooth-to-SIP gateway remains rejected. The v0.6 self-ADB concept is newly allowed as an optional, user-initiated feasibility test, provided the app guides the user, remembers pairing, and retries only while Wireless Debugging remains enabled. Do not promise a working voice path.
 - **Host screen:** PhnLnk must never use full-screen call intents, setTurnScreenOn, or wake locks to activate a host display. Android or the phone manufacturer may independently wake it for a cellular call.
+
+## Explicit user approval for guided experimental audio access
+
+**Decision updated November 7, 2026:** The user explicitly requested a guided one-time Wireless Debugging setup with automatic reconnection, despite earlier rejecting manual debugging. This supersedes the earlier no-debugging restriction ONLY for an opt-in advanced audio setup. It is not authorization to silently enable developer mode, automatically approve its own ADB privileges, or require debugging for normal call control.
+
+Workflow: user taps Guided audio setup on the SIM host, grants notification permission, PhnLnk opens Android Developer options, user manually switches on Wireless Debugging and chooses pairing code, and enters the code through a PhnLnk notification while the Android dialog stays open. The pairing identity is persisted. When Android permits it, PhnLnk automatically retries the helper after restart. There must be a visible status, an off switch, and an explicit audio-test consent.
+
+**Android can turn Wireless Debugging off after reboot, Wi-Fi changes, or security changes.** A normal application cannot safely switch it on again or silently authorize itself. Do not make that claim. A shell helper running only proves shell access, not the cellular audio capture/injection or secondary-device calling.
 
 ## Release signing incident and remediation
 
@@ -60,7 +68,7 @@ Do NOT commit signing material, add it to releases, or log it. Maintain a secure
 | Date | Decision | Reason |
 | --- | --- | --- |
 | 2026-11-07 | No extra hardware | User expressly rejected Linux/Bluetooth gateway approach |
-| 2026-11-07 | No Shizuku, root or debugging | User expressly rejected complex privileged setup |
+| 2026-11-07 | No Shizuku or root; optional guided debugging approved | User explicitly accepted one-time Android pairing with automatic reconnection for an experimental audio path |
 | 2026-11-07 | No default Phone app role | User requires retaining stock dialer |
 | 2026-11-07 | Maintain persistent repo instructions | Prevent recurring regressions during rapid prototyping |
 | 2026-11-07 | Signed GitHub releases only | Stop shipping APKs with incompatible, temporary certificates |

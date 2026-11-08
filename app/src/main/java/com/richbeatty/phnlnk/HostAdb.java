@@ -3,6 +3,7 @@ package com.richbeatty.phnlnk;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
+import android.net.wifi.WifiManager;
 import android.util.Log;
 import io.github.muntashirakon.adb.AbsAdbConnectionManager;
 import io.github.muntashirakon.adb.AdbStream;
@@ -14,6 +15,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -164,15 +166,31 @@ final class HostAdb {
     private int discover(String serviceType, int timeoutMs) throws Exception {
         AtomicInteger result = new AtomicInteger(-1);
         CountDownLatch done = new CountDownLatch(1);
+        // mDNS may also see neighbors' debugging services. Never send a
+        // pairing code to anything except the host phone itself.
         AdbMdns mdns = new AdbMdns(context, serviceType, (InetAddress host, int port) -> {
-            if (port > 0 && result.compareAndSet(-1, port)) done.countDown();
+            boolean local = false;
+            try {
+                local = host.isLoopbackAddress() ||
+                        NetworkInterface.getByInetAddress(host) != null;
+            } catch (Exception ignored) { }
+            if (local && port > 0 && result.compareAndSet(-1, port)) done.countDown();
         });
-        mdns.start();
+        WifiManager wifi = (WifiManager) context.getApplicationContext()
+                .getSystemService(Context.WIFI_SERVICE);
+        WifiManager.MulticastLock multicast = null;
+        if (wifi != null) {
+            multicast = wifi.createMulticastLock("phnlnk-local-adb");
+            multicast.setReferenceCounted(false);
+            multicast.acquire();
+        }
         try {
+            mdns.start();
             done.await(timeoutMs, TimeUnit.MILLISECONDS);
             return result.get();
         } finally {
-            mdns.stop();
+            try { mdns.stop(); } catch (Exception ignored) { }
+            if (multicast != null && multicast.isHeld()) multicast.release();
         }
     }
 

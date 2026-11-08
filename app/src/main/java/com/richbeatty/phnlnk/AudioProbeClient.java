@@ -11,7 +11,7 @@ final class AudioProbeClient {
     private AudioProbeClient() {}
 
     static String request(Context context, String command) throws Exception {
-        if (!("PING".equals(command) || "CAPTURE".equals(command) || "INJECT".equals(command)))
+        if (!("PING".equals(command) || "CAPTURE".equals(command) || "INJECT".equals(command) || "STOP".equals(command)))
             throw new IllegalArgumentException("Unknown diagnostic request");
         String token = context.getSharedPreferences(
                 "phnlnk_audio_bootstrap", Context.MODE_PRIVATE)

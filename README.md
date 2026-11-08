@@ -19,9 +19,11 @@ The user is open to considering the default Phone app role only if it truly enab
 
 ## What does not work yet
 
-**PhnLnk does not carry cellular call audio to your secondary Android device.** A normal Android app cannot capture and inject both sides of a carrier voice call through Android's public APIs. Merely becoming the default Phone app does not grant call audio access. The user's product requirements also reject Wireless Debugging, Shizuku, root, an additional hardware device, number porting, or carrier switching.
+**PhnLnk does not carry cellular call audio to your secondary Android device.** A normal Android app cannot capture and inject both sides of a carrier voice call through Android's public APIs. Merely becoming the default Phone app does not grant call audio access. The user still rejects Shizuku, root, extra hardware, number porting, and carrier switching. They have explicitly permitted an optional guided one-time Wireless Debugging pairing to test audio access; it does not make remote voice work.
 
-PhnLnk will not ask you to become the default Phone app or enable debugging during normal setup. The old v0.6 experimental in-app ADB diagnostics remain in the repository for technical reference, but they are not a solution to the no-debugging requirement and are not presented on the normal host screen.
+PhnLnk does not ask you to become the default Phone app or enable debugging during ordinary call-control setup. **v0.8 adds an optional Guided audio setup** on the main phone, with one-time Android-approved Wireless Debugging pairing, automatic retry when debugging remains available, visible connection status, a stop control, and consent-gated live-call tests.
+
+On the host, open **Guided audio setup** and tap **Start guided setup**. PhnLnk asks for notification permission and opens Developer options. Manually enable Wireless Debugging, select **Pair device with pairing code**, and enter the code through PhnLnk's notification while the Android dialog stays open. Pairing is remembered. Once authorized, PhnLnk retries its local shell helper after app restarts and best-effort after reboot. If Android turns Wireless Debugging off, you must enable it in Settings again. This is an experimental shell helper, **not a working audio relay**.
 
 **Live in-call keypad tones** from the companion cannot be promised while retaining the stock Phone app, because ordinary app call controls do not offer the necessary live DTMF APIs. The number pad still enters numbers before making calls.
 

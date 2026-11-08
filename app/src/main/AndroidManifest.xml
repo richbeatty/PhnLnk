@@ -47,6 +47,13 @@
 
         <activity android:name=".HostActivity" android:exported="false" />
         <activity android:name=".HostAudioActivity" android:exported="false" />
+        <service android:name=".AudioAccessService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-enabled reconnection to Android's own local debugging audio feasibility helper" />
+        </service>
         <service android:name=".AudioPairService"
             android:exported="false"
             android:foregroundServiceType="specialUse">

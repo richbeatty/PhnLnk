@@ -49,26 +49,43 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 10,
-        "The versionCode must be at least 10 and increase on subsequent releases")
-require("versionName '0.7.0'" in gradle,
+require(match is not None and int(match.group(1)) >= 11,
+        "The versionCode must be at least 11 and increase on subsequent releases")
+require("versionName '0.8.0'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
-# The user rejected both first-run privileged setup and default Phone role.
+# The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
 host_blocklist = [
     "ROLE_DIALER",
     "Enable in-call keypad",
-    "Set up and test call audio",
-    "Show pairing notification",
-    "Wireless Debugging pairing is required",
-    "ACTION_APPLICATION_DEVELOPMENT_SETTINGS",
 ]
 for banned in host_blocklist:
     require(banned not in host,
             f"The normal host setup must never prompt for: {banned}")
 
-require("new Intent(this, HostAudioActivity.class)" not in host,
-        "Experimental ADB diagnostic must not be a normal host requirement")
+require('secondary("Guided audio setup"' in host and
+        'startActivity(new Intent(this,HostAudioActivity.class))' in host,
+        "Optional guided audio entry point must be user initiated")
+require('AudioAccessState.autoReconnect(this)' in host,
+        "Host screen should restore explicitly enabled audio helper after reopening")
+audio_ui = content("app/src/main/java/com/richbeatty/phnlnk/HostAudioActivity.java")
+audio_state = content("app/src/main/java/com/richbeatty/phnlnk/AudioAccessState.java")
+audio_service = content("app/src/main/java/com/richbeatty/phnlnk/AudioAccessService.java")
+audio_pairing = content("app/src/main/java/com/richbeatty/phnlnk/AudioPairService.java")
+require("requestPermissions(" in audio_ui and "POST_NOTIFICATIONS" in audio_ui,
+        "Guided pairing must explicitly request notification permission")
+require("ACTION_APPLICATION_DEVELOPMENT_SETTINGS" in audio_ui,
+        "Only the user can enable Wireless Debugging in Android Settings")
+require('Pair device with pairing code' in audio_ui,
+        "Explain Android's explicit pairing approval")
+require('auto_reconnect' in audio_state,
+        "Remember the user's automatic reconnect setting")
+require('AudioAccessState.isPaired(this)' in audio_service,
+        "Never try privileged helper startup before the user has paired Android")
+require("AudioAccessState.enable(this)" in audio_pairing,
+        "Remember the approved pairing and reconnect choice")
+require('status.put("audioRelayed", false)' in core,
+        "Do not claim finished two-way audio after a shell probe passes")
 require("setTurnScreenOn" not in host and "FLAG_SHOW_WHEN_LOCKED" not in host,
         "Host app must not deliberately wake the screen")
 

@@ -48,18 +48,34 @@ public final class AudioPairService extends Service {
                 notifyStatus("Enter the six-digit Android pairing code.", true);
                 return START_NOT_STICKY;
             }
+            AudioAccessState.set(this,AudioAccessState.PAIRING,
+                    "Verifying the Android pairing code...");
             notifyStatus("Pairing with Android on this phone...", false);
             worker.execute(() -> {
                 try {
                     String result = new HostAdb(this).pair(code);
                     getSharedPreferences("phnlnk_audio_bootstrap", MODE_PRIVATE)
                             .edit().putBoolean("adb_paired", true).apply();
-                    notifyStatus(result + " Open PhnLnk to test audio.", false);
-                    // Notification remains visible after the service is stopped.
+                    AudioAccessState.enable(this);
+                    AudioAccessState.set(this,AudioAccessState.CONNECTING,
+                            "Pairing approved. Starting the local helper...");
+                    notifyStatus("Pairing saved. Connecting the local helper...", false);
+                    // Reuse this authorization automatically while wireless
+                    // debugging stays enabled. Android permission is not bypassed.
+                    try {
+                        startForegroundService(new Intent(this,AudioAccessService.class)
+                                .setAction(AudioAccessService.ACTION_RETRY));
+                    } catch (Exception exception) {
+                        AudioAccessState.set(this,AudioAccessState.DEBUGGING_OFF,
+                                "Pairing saved. Return to PhnLnk and tap Retry connection.");
+                        notifyStatus("Pairing saved. Open PhnLnk to reconnect.", false);
+                    }
                     stopForeground(Service.STOP_FOREGROUND_DETACH);
                     stopSelf(startId);
                 } catch (Exception error) {
                     Log.w("PhnLnkAudio", "Pairing failed", error);
+                    AudioAccessState.set(this,AudioAccessState.ERROR,
+                            "Pairing failed. Check the six-digit code and try again.");
                     notifyStatus("Pairing failed: " + safe(error.getMessage()), true);
                 }
             });

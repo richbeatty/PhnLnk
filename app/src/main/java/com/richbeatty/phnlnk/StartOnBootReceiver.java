@@ -23,6 +23,18 @@ public final class StartOnBootReceiver extends BroadcastReceiver {
                 if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(start);
                 else context.startService(start);
             }
+            if ("host".equals(role) && AudioAccessState.autoReconnect(context)
+                    && AudioAccessState.isPaired(context)) {
+                // Android may restrict special-use FGS startup after reboot.
+                // Pairing is never reset; reopening PhnLnk can retry.
+                try {
+                    Intent audio = new Intent(context, AudioAccessService.class);
+                    if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(audio);
+                    else context.startService(audio);
+                } catch (RuntimeException blocked) {
+                    Log.w("PhnLnk", "Audio reconnection delayed until app opens", blocked);
+                }
+            }
             if ("client".equals(role) &&
                     RemoteClient.isPaired(context) &&
                     context.getSharedPreferences("companion_ui", Context.MODE_PRIVATE)

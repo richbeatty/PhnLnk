@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.0, guided audio access and reconnection
+
+- Added opt-in guided Wireless Debugging setup on the main phone with Android pairing-code notification.
+- Reused saved Android pairing identity, and added foreground background retry service with visible status.
+- Automatic retry while Wireless Debugging is on, and best-effort recovery after reboot or reopening the host app.
+- Added a stop switch to disable automatic reconnect and request local helper shutdown. Revoking Android's ADB authorization remains a user action in Developer options.
+- Audio tests remain user-consented, calculate levels only, and never save call recordings.
+- Kept original Phone app and everyday call controls independent of Android debugging.
+- Updated maintainer instructions for the owner's newly approved optional one-time setup.
+- Does not add a real two-way audio stream to the companion device.
+
+
 ## v0.7.0, interface refresh
 
 - New reusable native visual style with muted green surfaces, readable typography, clear primary actions and consistent controls, on host, companion, and role selection.
