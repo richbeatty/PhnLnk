@@ -20,6 +20,10 @@ If Android no longer lists PhnLnk under Paired devices, use **Pair again if Andr
 
 Even if the local helper reports ready, two-way cellular audio on the second Android device is not yet available.
 
+### "Connection failed: Stream closed" (v0.8.1)
+
+This error is documented upstream in the exact ADB library PhnLnk uses: [libadb issue #34](https://github.com/MuntashirAkon/libadb-android/issues/34). PhnLnk v0.8.2 replaces short-lived ADB shell commands with a persistent shell and a single fresh-connection retry. Update over the previous permanently signed 0.8.1 APK without uninstalling. Keep the existing Android debugging pairing. Retry audio setup and report the precise new stage if it fails. The fix is compiled but is not yet validated on the MP01.
+
 ## What works
 
 - The host phone can request outgoing cellular calls through Android Telecom without becoming the default Phone app.

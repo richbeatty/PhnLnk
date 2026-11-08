@@ -15,6 +15,10 @@ import io.github.muntashirakon.adb.AdbStream;
 import io.github.muntashirakon.adb.android.AdbMdns;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.IOException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -30,6 +34,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Date;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,56 +118,90 @@ final class HostAdb {
                     + "Keep Wireless Debugging enabled and Wi-Fi on. "
                     + "You can enter the port printed on Android's Wireless Debugging screen.");
         }
-        Connection connection = new Connection(identity);
-        try {
-            progress(listener, "Connecting to Android's local debugging port " + port + "...");
-            boolean accepted;
-            try {
-                accepted = connection.connect(LOOPBACK, port);
-            } catch (Exception primary) {
-                if (configuredPort <= 0 || configuredPort == port) throw primary;
-                progress(listener, "Trying the connection port you entered manually...");
-                accepted = connection.connect(LOOPBACK, configuredPort);
-            }
-            if (!accepted && !connection.isConnected() &&
-                    configuredPort > 0 && configuredPort != port) {
-                progress(listener, "Trying the connection port you entered manually...");
-                accepted = connection.connect(LOOPBACK, configuredPort);
-            }
-            if (!accepted && !connection.isConnected())
-                throw new IllegalStateException("Android rejected the saved pairing or connection port. "
-                        + "Check Wireless Debugging > Paired devices and the connection port.");
-            // Stage only the bundled executable, not user data or call audio.
-            File external = context.getExternalFilesDir(null);
-            if (external == null) throw new IllegalStateException("Phone file storage is unavailable.");
-            File stage = new File(external, PROBE_ASSET);
-            try (InputStream asset = context.getAssets().open(PROBE_ASSET);
-                 FileOutputStream output = new FileOutputStream(stage)) {
-                byte[] bytes = new byte[8192];
-                int count;
-                while ((count = asset.read(bytes)) != -1) output.write(bytes, 0, count);
-            }
-            String path = stage.getAbsolutePath();
-            if (!path.matches("[A-Za-z0-9_./-]+"))
-                throw new IllegalStateException("Unexpected probe path on this phone.");
-            progress(listener, "Copying the bundled audio test helper into Android's shell...");
-            String staged = shell(connection, "cp " + path + " " + PROBE_DEVICE_PATH
-                    + " && chmod 600 " + PROBE_DEVICE_PATH + " && echo PROBE_STAGED");
-            if (!staged.contains("PROBE_STAGED"))
-                throw new IllegalStateException("Android could not stage its shell helper: "
-                        + abbreviate(staged));
-            // setsid detaches the helper from the ADB shell process group.
-            // The secret is random, per installation, and never printed.
-            String launch = "CLASSPATH=" + PROBE_DEVICE_PATH + " setsid nohup app_process / "
-                    + MAIN_CLASS + " " + key
-                    + " < /dev/null > " + PROBE_LOG + " 2>&1 & echo PROBE_STARTED";
-            progress(listener, "Starting the local shell helper...");
-            String started = shell(connection, launch);
-            if (!started.contains("PROBE_STARTED"))
-                throw new IllegalStateException("Shell process launch did not complete.");
-        } finally {
-            connection.close();
+        // libadb-android 3.1.1 has an upstream peer-CLSE race: a short
+        // shell: command can return "Stream closed" after it already ran.
+        // Reuse one interactive exec:sh session with explicit result markers,
+        // and reconnect once with a fresh manager if the transport closes.
+        File external = context.getExternalFilesDir(null);
+        if (external == null) throw new IllegalStateException("Phone file storage is unavailable.");
+        File stage = new File(external, PROBE_ASSET);
+        try (InputStream asset = context.getAssets().open(PROBE_ASSET);
+             FileOutputStream output = new FileOutputStream(stage)) {
+            byte[] bytes = new byte[8192];
+            int count;
+            while ((count = asset.read(bytes)) != -1) output.write(bytes, 0, count);
         }
+        String path = stage.getAbsolutePath();
+        if (!path.matches("[A-Za-z0-9_./-]+"))
+            throw new IllegalStateException("Unexpected probe path on this phone.");
+
+        Exception lastFailure = null;
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            Connection connection = new Connection(identity);
+            String phase = "opening Android ADB";
+            try {
+                progress(listener, "Connecting to Android's local debugging port " + port
+                        + " (attempt " + attempt + " of 2)...");
+                boolean accepted;
+                try {
+                    accepted = connection.connect(LOOPBACK, port);
+                } catch (Exception primary) {
+                    if (configuredPort <= 0 || configuredPort == port) throw primary;
+                    progress(listener, "Trying the saved manual connection port...");
+                    accepted = connection.connect(LOOPBACK, configuredPort);
+                }
+                if (!accepted && !connection.isConnected() &&
+                        configuredPort > 0 && configuredPort != port) {
+                    progress(listener, "Trying the saved manual connection port...");
+                    accepted = connection.connect(LOOPBACK, configuredPort);
+                }
+                if (!accepted && !connection.isConnected())
+                    throw new IllegalStateException("Android rejected the saved pairing or "
+                            + "connection port. Check Wireless Debugging > Paired devices.");
+
+                phase = "verifying shell identity";
+                progress(listener, "Checking that Android opened a usable shell...");
+                String who = shell(connection, "id -u").trim();
+                if (!"2000".equals(who))
+                    throw new IllegalStateException("Android shell identity was unexpected: "
+                            + abbreviate(who));
+
+                phase = "copying the bundled audio helper";
+                progress(listener, "Copying the bundled audio test helper...");
+                String staged = shell(connection, "cp " + path + " " + PROBE_DEVICE_PATH
+                        + " && chmod 600 " + PROBE_DEVICE_PATH + " && echo PROBE_STAGED");
+                if (!staged.contains("PROBE_STAGED"))
+                    throw new IllegalStateException("Android could not stage its shell helper: "
+                            + abbreviate(staged));
+
+                phase = "launching the audio helper";
+                // setsid detaches app_process from ADB's process group. A
+                // per-install secret is never logged or returned to the UI.
+                String launch = "CLASSPATH=" + PROBE_DEVICE_PATH + " setsid nohup app_process / "
+                        + MAIN_CLASS + " " + key
+                        + " < /dev/null > " + PROBE_LOG + " 2>&1 & echo PROBE_STARTED";
+                progress(listener, "Starting the local shell audio helper...");
+                String started = shell(connection, launch);
+                if (!started.contains("PROBE_STARTED"))
+                    throw new IllegalStateException("Audio helper launch did not complete: "
+                            + abbreviate(started));
+                lastFailure = null;
+                break;
+            } catch (Exception error) {
+                lastFailure = new IllegalStateException(
+                        "Android ADB failed while " + phase + ": "
+                        + safeMessage(error), error);
+                if (attempt == 1 && isClosedStream(error)) {
+                    progress(listener, "Android closed its ADB command stream. Reconnecting once...");
+                    continue;
+                }
+                throw lastFailure;
+            } finally {
+                try { connection.closeShell(); } catch (Exception ignored) { }
+                try { connection.close(); } catch (Exception ignored) { }
+            }
+        }
+        if (lastFailure != null) throw lastFailure;
 
         progress(listener, "Waiting for the audio helper to answer its local health check...");
         for (int attempt = 0; attempt < 10; attempt++) {
@@ -245,35 +284,52 @@ final class HostAdb {
         }
     }
 
+    private static String safeMessage(Throwable error) {
+        Throwable cause = error;
+        while (cause.getCause() != null && cause.getCause() != cause)
+            cause = cause.getCause();
+        String message = cause.getMessage();
+        if (message == null || message.trim().isEmpty())
+            return cause.getClass().getSimpleName();
+        return message.length() > 160 ? message.substring(0, 160) : message;
+    }
+
+    private static boolean isClosedStream(Throwable error) {
+        for (Throwable e = error; e != null && e.getCause() != e; e = e.getCause()) {
+            if (e.getMessage() != null) {
+                String msg = e.getMessage().toLowerCase(java.util.Locale.ROOT);
+                if (msg.contains("stream closed") || msg.contains("closed adb")
+                        || msg.contains("connection is no longer active"))
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private static String shell(Connection manager, String command) throws Exception {
-        // Android's ADB library can wait indefinitely for EOF even when a
-        // shell command has exited. Time-limit the entire operation, including
-        // openStream(), so "Connecting..." never stays on screen forever.
+        // Timeout is applied to opening the persistent session AND reading
+        // marker-delimited output. Closing the transport on timeout breaks a
+        // potentially blocked library read. Never let this block the UI.
         ExecutorService timeout = Executors.newSingleThreadExecutor(r -> {
             Thread thread = new Thread(r,"PhnLnk-ADB-command");
             thread.setDaemon(true);
             return thread;
         });
-        Future<String> future = timeout.submit(() -> {
-            AdbStream stream = manager.openStream("shell:" + command);
-            try (InputStream input = stream.openInputStream()) {
-                ByteArrayOutputStream result = new ByteArrayOutputStream();
-                byte[] bytes = new byte[1024];
-                int n;
-                while ((n = input.read(bytes)) != -1 && result.size() < 16000) {
-                    result.write(bytes,0,n);
-                }
-                return result.toString("UTF-8");
-            } finally {
-                try { stream.close(); } catch (Exception ignored) { }
-            }
-        });
+        Future<String> future = timeout.submit(() -> manager.execute(command));
         try {
             return future.get(14000, TimeUnit.MILLISECONDS);
         } catch (TimeoutException timeoutError) {
             future.cancel(true);
-            throw new IllegalStateException(
-                    "Android's debugging shell stopped responding. "
+            // The libadb transport may hold an internal lock while blocked
+            // in readLine(). Close from a daemon thread rather than delaying
+            // the caller and defeating our own 14-second timeout.
+            Thread closer = new Thread(() -> {
+                try { manager.closeShell(); } catch (Exception ignored) { }
+                try { manager.close(); } catch (Exception ignored) { }
+            }, "PhnLnk-ADB-timeout-cleanup");
+            closer.setDaemon(true);
+            closer.start();
+            throw new IllegalStateException("Android's debugging command timed out. "
                     + "Toggle Wireless Debugging off and on, then retry.");
         } catch (ExecutionException error) {
             Throwable cause = error.getCause();
@@ -284,13 +340,104 @@ final class HostAdb {
         }
     }
 
+    /**
+     * One command channel per ADB connection instead of a new short-lived
+     * shell: stream for every operation. Adapted from JemRec's documented
+     * exec:sh approach (Apache-2.0 upstream). The marker protocol removes
+     * any terminal echo without relying on EOF/CLSE, which is defective in
+     * libadb 3.1.1 on some Android 14 devices.
+     */
+    private static final class ShellSession {
+        private final AdbStream stream;
+        private final OutputStream output;
+        private final BufferedReader input;
+        private final String marker = "__phnlnk_" + UUID.randomUUID().toString().replace("-","") + "__";
+
+        ShellSession(AdbStream stream) throws Exception {
+            this.stream = stream;
+            output = stream.openOutputStream();
+            input = new BufferedReader(new InputStreamReader(
+                    stream.openInputStream(), StandardCharsets.UTF_8));
+            // Best effort: some adbd variants allocate a PTY for exec:sh.
+            // A marker on a single input line also handles echo safely.
+            output.write("stty -echo 2>/dev/null; PS1=''\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            long end = System.currentTimeMillis() + 200;
+            while (System.currentTimeMillis() < end) {
+                if (input.ready()) input.read();
+                else Thread.sleep(20);
+            }
+        }
+
+        String run(String command) throws Exception {
+            if (command.indexOf('\n') >= 0 || command.indexOf('\r') >= 0)
+                throw new IllegalArgumentException("ADB shell command must be a single line");
+            String begin = marker + "BEGIN";
+            String end = marker + "END";
+            // Subshell also handles the trailing ampersand in app_process
+            // launch commands. Real markers appear only after echoed input.
+            String wrapped = "echo " + begin + "; ( " + command + " ) ; echo " + end + "\n";
+            output.write(wrapped.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+
+            while (true) {
+                String line = input.readLine();
+                if (line == null) throw new IOException(
+                        "Android closed ADB before the command began");
+                if (begin.equals(line.trim())) break;
+            }
+            StringBuilder result = new StringBuilder();
+            while (true) {
+                String line = input.readLine();
+                if (line == null) throw new IOException(
+                        "Android closed ADB before the command completed");
+                if (end.equals(line.trim())) break;
+                if (result.length() < 12000) result.append(line).append('\n');
+            }
+            return result.toString().trim();
+        }
+
+        void close() {
+            try { output.close(); } catch (Exception ignored) { }
+            try { if (!stream.isClosed()) stream.close(); } catch (Exception ignored) { }
+        }
+    }
+
     private static final class Connection extends AbsAdbConnectionManager {
         private final KeyIdentity id;
+        private volatile ShellSession session;
+
         Connection(KeyIdentity id) {
             this.id = id;
             setApi(Build.VERSION.SDK_INT);
             setTimeout(10, TimeUnit.SECONDS);
         }
+
+        synchronized String execute(String command) throws Exception {
+            if (!isConnected()) throw new IOException("Android's ADB connection is no longer active");
+            if (session == null) {
+                try {
+                    session = new ShellSession(openStream("exec:sh"));
+                } catch (Exception error) {
+                    closeShell();
+                    throw error;
+                }
+            }
+            try {
+                return session.run(command);
+            } catch (Exception error) {
+                closeShell();
+                throw error;
+            }
+        }
+
+        void closeShell() {
+            if (session == null) return;
+            try { session.close(); } catch (Exception ignored) { }
+            session = null;
+        }
+
         @Override protected PrivateKey getPrivateKey() {return id.privateKey;}
         @Override protected Certificate getCertificate() {return id.certificate;}
         @Override protected String getDeviceName() {return "PhnLnk";}

@@ -47,6 +47,14 @@ Additional repairs: bound each ADB shell command's wait to 14 seconds, show spec
 
 **Not verified on the user's device.** A mDNS filter is a plausible bug, not a confirmed cause. A successful shell helper still does not prove actual call audio.
 
+## November 7, 2026: 0.8.2 self-ADB "Stream closed" fix
+
+User reported `Connection failed: Stream closed` during guided audio setup in 0.8.1. This matches an independently documented **upstream libadb-android 3.1.1 bug**: https://github.com/MuntashirAkon/libadb-android/issues/34 and its pending patch https://github.com/MuntashirAkon/libadb-android/pull/35 . The underlying symptom is that short-lived `shell:` streams can expose a peer close as IOException, or hang indefinitely after queued data is consumed.
+
+PhnLnk's 0.8.1 version opened an independent `shell:` stream for each helper setup command. v0.8.2 uses an interactive `exec:sh` stream with unique begin/end output markers and only one session per ADB connection, following the independently device-tested JemRec approach, and retries a closed stream once with an entirely fresh ADB connection. Each stage has an error label and bounded wait.
+
+**Do not reintroduce short-lived ADB shell streams** until the underlying dependency is fixed and verified on MP01. Do not claim this transport change proves cellular audio injection, capture, or internet voice streaming. The user may need to keep Wireless Debugging enabled to reconnect.
+
 ## Release signing incident and remediation
 
 Versions 0.1 through 0.6 were generally produced with GitHub-hosted runner debug certificates. Those certificates change between builds. An APK update fails when the certificate does not match the installed version. A new APK cannot bypass this rule.

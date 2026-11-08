@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.2, Android Stream closed failure
+
+- Tracked the reported error to a documented libadb-android 3.1.1 wireless ADB stream-close defect (GitHub issue #34, PR #35).
+- Replaced successive short-lived "shell:" commands with one long-lived "exec:sh" shell session per ADB connection and marker-delimited output.
+- Verified Android is providing shell UID 2000 before staging the local helper.
+- Added one fresh ADB-connection retry if a stream closes unexpectedly, with precise failure-stage reporting.
+- Preserved the bounded 14-second command timeout; cleanup happens off the caller's thread.
+- Preserved paired Android authorization, manual connection port and normal call controls.
+- These are host-side transport fixes, not an implemented remote cellular audio bridge.
+- No on-device MP01 verification yet.
+
+
 ## v0.8.1, fix connection status and local ADB discovery
 
 - Removed an overly strict local-interface filter that could discard Android's own mDNS advertised debugging port.

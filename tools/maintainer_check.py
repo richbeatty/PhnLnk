@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 12,
-        "The versionCode must be at least 12 and increase on subsequent releases")
-require("versionName '0.8.1'" in gradle,
+require(match is not None and int(match.group(1)) >= 13,
+        "The versionCode must be at least 13 and increase on subsequent releases")
+require("versionName '0.8.2'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -92,6 +92,14 @@ require("TimeoutException" in host_adb and "future.get(14000" in host_adb,
         "ADB commands must have a bounded wait, never stick on Connecting forever")
 require("setManualPort(this,port)" in audio_ui,
         "Keep an optional manual connection-port recovery control")
+require('openStream("exec:sh")' in host_adb,
+        "Use a persistent exec:sh session, not repeated short-lived ADB shells")
+require('openStream("shell:' not in host_adb,
+        "Avoid libadb 3.1.1 short-lived shell stream CLSE handling regression")
+require("Reconnecting once" in host_adb and "isClosedStream(error)" in host_adb,
+        "Keep bounded recovery from transient ADB stream close")
+require("future.get(14000" in host_adb,
+        "Preserve hard timeout for stalled debugging commands")
 require("Connection stalled. Tap Retry." in audio_state,
         "Stale Connecting state must be diagnosed, not displayed forever")
 require("AudioAccessState.enable(this)" in audio_pairing,
