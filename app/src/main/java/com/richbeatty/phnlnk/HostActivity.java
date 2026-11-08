@@ -2,6 +2,8 @@ package com.richbeatty.phnlnk;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.role.RoleManager;
+import android.content.pm.PackageManager;
 import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
@@ -70,9 +72,36 @@ public final class HostActivity extends Activity {
         permissionsButton = button("Allow phone permissions", this::requestPhonePermissions);
         root.addView(permissionsButton);
 
+        root.addView(text("Call features", 22));
+        root.addView(text("To send keypad tones such as press 1 during a call, PhnLnk needs to be selected as your default Phone app. The regular system dialer will be replaced until you change it back.", 13));
+        root.addView(button("Enable in-call keypad", () -> new AlertDialog.Builder(this)
+                .setTitle("Use PhnLnk as default phone app?")
+                .setMessage("This replaces your phone's standard incoming and ongoing call screen with PhnLnk controls. Android will ask permission. You can revert under Settings > Apps > Default apps > Phone. Incoming calls must still be tested on your device.")
+                .setNegativeButton("Not now", null)
+                .setPositiveButton("Continue", (dialog, which) -> {
+                    RoleManager role = (RoleManager) getSystemService(ROLE_SERVICE);
+                    if (role == null || !role.isRoleAvailable(RoleManager.ROLE_DIALER)) {
+                        status.setText("Default phone role is not available on this device.");
+                        return;
+                    }
+                    if (role.isRoleHeld(RoleManager.ROLE_DIALER)) {
+                        status.setText("PhnLnk is already the default phone app.");
+                    } else {
+                        startActivityForResult(role.createRequestRoleIntent(RoleManager.ROLE_DIALER), 82);
+                    }
+                }).show()));
+        root.addView(button("Open host call controls", () ->
+                startActivity(new Intent(this, HostCallActivity.class))));
+        root.addView(button("Resume host connection", () -> {
+            getSharedPreferences("mode", MODE_PRIVATE).edit().putBoolean("hosting_enabled", true).apply();
+            try { startForegroundService(new Intent(this, GatewayService.class)); }
+            catch (Exception error) { status.setText("Could not start: " + error.getMessage()); }
+            handler.postDelayed(this::updateStatus, 500);
+        }));
         root.addView(text("Pair another device", 22));
         root.addView(text("Scan the QR with the PhnLnk Android app, or enter six digits in your PC browser.", 15));
         root.addView(button("Pair a device", () -> {
+            getSharedPreferences("mode", MODE_PRIVATE).edit().putBoolean("hosting_enabled",true).apply();
             if (!hasRequiredPermissions()) {
                 requestPhonePermissions();
                 return;
@@ -111,6 +140,7 @@ public final class HostActivity extends Activity {
                         }).show()));
 
         root.addView(button("Stop host", () -> {
+            getSharedPreferences("mode", MODE_PRIVATE).edit().putBoolean("hosting_enabled", false).apply();
             stopService(new Intent(this, GatewayService.class));
             handler.postDelayed(this::updateStatus, 300);
         }));
@@ -127,8 +157,10 @@ public final class HostActivity extends Activity {
                 "Use only on trusted home Wi-Fi. Do not expose the host port to the internet. " +
                 "Use your regular phone app for emergencies.", 13));
         if (hasRequiredPermissions()) {
-            try { startForegroundService(new Intent(this, GatewayService.class)); }
-            catch (Exception ignored) { }
+            if (getSharedPreferences("mode", MODE_PRIVATE).getBoolean("hosting_enabled", true)) {
+                try { startForegroundService(new Intent(this, GatewayService.class)); }
+                catch (Exception ignored) { }
+            }
         } else {
             requestPhonePermissions();
         }
@@ -205,8 +237,11 @@ public final class HostActivity extends Activity {
             if (permissionsButton != null) permissionsButton.setVisibility(
                     hasRequiredPermissions() ? View.GONE : View.VISIBLE);
             String link = preferredUrl();
+            RoleManager role = (RoleManager) getSystemService(ROLE_SERVICE);
+            boolean advanced = role != null && role.isRoleHeld(RoleManager.ROLE_DIALER);
             status.setText("Host: " + (GatewayService.isRunning() ? "Ready" : "Off")
                     + "    Call: " + report.getString("callState")
+                    + "\nIn-call tones: " + (advanced ? "Enabled" : "Set PhnLnk as default Phone app")
                     + "\nConnected devices: " + PairingManager.get(this).count()
                     + "\n\nFor a PC browser: "
                     + (link == null ? "Connect this phone to Wi-Fi" : link));

@@ -69,7 +69,7 @@ button:disabled {opacity:.45;cursor:default}
     <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567" aria-label="Phone number">
     <div id="keypad" aria-label="Dial pad"></div>
     <button class="primary" id="dial">Call using my number</button>
-    <div class="small-note">The keypad enters numbers. In-call touch tones aren't available yet.</div>
+    <div class="small-note">During a call, the keypad sends menu tones after enabling in-call control on your main phone.</div>
     <div class="row">
       <button id="answer">Answer</button>
       <button id="end">End call</button>
@@ -89,6 +89,8 @@ const $ = id => document.getElementById(id);
 const KEY = 'phnlnk.browser.key.v2';
 let token = localStorage.getItem(KEY);
 let busy = false;
+let callState = 'unknown';
+let dtmfReady = false;
 function showPair(message='') {
   $('phone-screen').hidden = true;
   $('pair-screen').hidden = false;
@@ -115,6 +117,8 @@ async function refresh() {
     const data = await r.json();
     showPhone();
     $('state').textContent = data.callState;
+    callState = data.callState;
+    dtmfReady = Boolean(data.dtmfReady);
     $('device').textContent = data.model;
     $('indicator').className =
       data.callState === 'ringing' ? 'ringing' :
@@ -181,7 +185,12 @@ for (const digit of KEYPAD) {
   button.textContent=digit;
   button.setAttribute('aria-label','Dial '+digit);
   button.addEventListener('click',()=>{
-    $('number').value += digit;
+    if(callState === 'active') {
+      if(dtmfReady) action('dtmf', {digit});
+      else $('message').textContent = 'Enable the in-call keypad on your main phone first.';
+    } else {
+      $('number').value += digit;
+    }
     $('number').focus();
   });
   $('keypad').appendChild(button);

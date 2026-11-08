@@ -151,7 +151,7 @@ final class HttpBridge {
             }
 
             if ("POST".equals(method) &&
-                    ("/api/dial".equals(path) || "/api/answer".equals(path) || "/api/end".equals(path))) {
+                    ("/api/dial".equals(path) || "/api/answer".equals(path) || "/api/end".equals(path) || "/api/dtmf".equals(path))) {
                 if (!"1".equals(headers.get("x-phnlnk")) ||
                         !headers.getOrDefault("content-type", "").startsWith("application/json")) {
                     respond(output, 403, "Forbidden", "text/plain", "Invalid request origin", "");
@@ -186,6 +186,12 @@ final class HttpBridge {
                         case "/api/dial": CallController.dial(context, body.optString("number", "")); break;
                         case "/api/answer": CallController.answer(context); break;
                         case "/api/end": CallController.end(context); break;
+                        case "/api/dtmf": {
+                            String digit = body.optString("digit", "");
+                            if (!digit.matches("[0-9*#]")) throw new IllegalArgumentException("Enter one keypad digit");
+                            PhoneInCallService.sendDtmf(digit.charAt(0));
+                            break;
+                        }
                         default: throw new IllegalStateException("Unknown action");
                     }
                     respond(output, 200, "OK", "application/json", "{\"ok\":true}", "");

@@ -14,6 +14,14 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         Uri deepLink = getIntent() == null ? null : getIntent().getData();
+        if (getIntent() != null &&
+                Intent.ACTION_DIAL.equals(getIntent().getAction())) {
+            Intent hostDialer = new Intent(this, HostCallActivity.class);
+            hostDialer.setData(deepLink);
+            startActivity(hostDialer);
+            finish();
+            return;
+        }
         if (deepLink != null && "phnlnk".equals(deepLink.getScheme())
                 && "pair".equals(deepLink.getHost())) {
             getSharedPreferences("mode", MODE_PRIVATE).edit().putString("role","client").apply();
@@ -63,7 +71,10 @@ public final class MainActivity extends Activity {
         button.setText(label);
         button.setTextSize(17);
         button.setOnClickListener(v -> {
-            getSharedPreferences("mode", MODE_PRIVATE).edit().putString("role", role).apply();
+            getSharedPreferences("mode", MODE_PRIVATE).edit()
+                    .putString("role", role)
+                    .putBoolean("hosting_enabled", "host".equals(role))
+                    .apply();
             startActivity(new Intent(this, activity));
             finish();
         });

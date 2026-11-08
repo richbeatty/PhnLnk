@@ -51,6 +51,8 @@ public final class ClientActivity extends Activity {
     private Button dial, answer, end, alerts;
     private String tab = "Dial";
     private boolean contactsLoaded;
+    private volatile boolean dtmfReady;
+    private volatile String activeState = "unknown";
     private volatile boolean polling;
 
     static final class Contact {
@@ -188,6 +190,29 @@ public final class ClientActivity extends Activity {
         root.addView(text("Incoming call alerts", 19));
         alerts = button("Enable alerts", () -> toggleAlerts());
         root.addView(alerts);
+        root.addView(button("Update host Wi-Fi address", () -> {
+            EditText field = input("Host Wi-Fi IP", InputType.TYPE_CLASS_TEXT);
+            String current = RemoteClient.address(this);
+            if (current.startsWith("http://")) {
+                String hostOnly = current.substring(7);
+                if (hostOnly.endsWith(":47321")) hostOnly = hostOnly.substring(0, hostOnly.length() - 6);
+                field.setText(hostOnly);
+            }
+            new AlertDialog.Builder(this)
+                .setTitle("Reconnect to your main phone")
+                .setMessage("If its Wi-Fi address changed, enter the new one. Your pairing stays saved.")
+                .setView(field)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    try {
+                        RemoteClient.changeAddress(this, field.getText().toString());
+                        if (note != null) note.setText("Address saved. Your pairing is still connected.");
+                        fetchStatus();
+                    } catch (Exception error) {
+                        if (note != null) note.setText(error.getMessage());
+                    }
+                }).show();
+        }));
         root.addView(button("Disconnect this device", () -> {
             new AlertDialog.Builder(this)
                     .setTitle("Disconnect from your phone?")
@@ -228,7 +253,14 @@ public final class ClientActivity extends Activity {
         for (String[] rowKeys : keys) {
             LinearLayout row = row();
             for (String key : rowKeys) {
-                Button button = button(key, () -> number.append(key));
+                Button button = button(key, () -> {
+                    if ("active".equals(activeState)) {
+                        if (dtmfReady) command("dtmf", key);
+                        else if (note != null) note.setText("Enable the in-call keypad on your main phone first.");
+                    } else {
+                        number.append(key);
+                    }
+                });
                 button.setTextSize(25);
                 button.setAllCaps(false);
                 row.addView(button, weighted());
@@ -243,7 +275,7 @@ public final class ClientActivity extends Activity {
         }), weighted());
         row.addView(button("Clear", () -> number.setText("")), weighted());
         target.addView(row);
-        target.addView(text("Dial pad is for entering a number. During-call keypad tones are not supported in this version.", 12));
+        target.addView(text("During a call, keypad buttons send menu tones when the main phone has In-call keypad enabled.", 12));
     }
 
     private void showContacts() {
@@ -399,14 +431,15 @@ public final class ClientActivity extends Activity {
     }
 
     private void command(String action, String phone) {
-        if (note != null) note.setText("Sending...");
+        if (note != null) note.setText("dtmf".equals(action) ? "Sending keypad tone..." : "Sending...");
         worker.execute(() -> {
             try {
                 RemoteClient.call(this, action, phone);
                 runOnUiThread(() -> {
                     if ("dial".equals(action)) remember(phone);
                     if (note != null) note.setText(
-                            "dial".equals(action) ? "Call requested on your main phone." : "Request sent.");
+                            "dial".equals(action) ? "Call requested on your main phone."
+                            : "dtmf".equals(action) ? "Tone sent." : "Request sent.");
                     fetchStatus();
                 });
             } catch (Exception e) {
@@ -424,6 +457,8 @@ public final class ClientActivity extends Activity {
                 runOnUiThread(() -> {
                     if (connection == null) return;
                     String call = state.optString("callState","unknown");
+                    activeState = call;
+                    dtmfReady = state.optBoolean("dtmfReady", false);
                     connection.setText("Connected to " + state.optString("model","your phone")
                             + "\nCall status: " + call
                             + ("ringing".equals(call) ? "\nIncoming call on your main phone" : ""));

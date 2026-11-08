@@ -1,6 +1,10 @@
 plugins {
     id 'com.android.application'
 }
+
+def signingFile = System.getenv('PHNLNK_KEYSTORE_FILE')
+def signingPassword = System.getenv('PHNLNK_STORE_PASSWORD')
+
 android {
     namespace 'com.richbeatty.phnlnk'
     compileSdk 35
@@ -8,14 +12,38 @@ android {
         applicationId 'com.richbeatty.phnlnk'
         minSdk 30
         targetSdk 34
-        versionCode 5
-        versionName '0.3.0'
+        versionCode 6
+        versionName '0.4.0'
+    }
+
+    signingConfigs {
+        persistent {
+            if (signingFile != null && !signingFile.isEmpty() &&
+                    signingPassword != null && !signingPassword.isEmpty()) {
+                storeFile file(signingFile)
+                storePassword signingPassword
+                keyAlias 'phnlnk'
+                keyPassword signingPassword
+                storeType 'pkcs12'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (signingFile != null && !signingFile.isEmpty() &&
+                    signingPassword != null && !signingPassword.isEmpty()) {
+                signingConfig signingConfigs.persistent
+            }
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
 dependencies {
     implementation 'com.google.zxing:core:3.5.3'
 }

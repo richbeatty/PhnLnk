@@ -27,6 +27,8 @@ final class CallController {
         status.put("hasTelephony", context.getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY));
         status.put("audioRelayed", false);
+        status.put("dtmfReady", PhoneInCallService.canSendDtmf());
+        status.put("defaultDialerRequiredForDtmf", !PhoneInCallService.canSendDtmf());
 
         String callState = "permission needed";
         if (has(context, Manifest.permission.READ_PHONE_STATE)) {

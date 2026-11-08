@@ -1,86 +1,76 @@
 # PhnLnk
 
-One Android app with two roles: a **host phone** that keeps its SIM and number, and a **companion Android device** that can control that phone's calls over a private network. The host also serves a simple browser interface for PCs.
+A device-neutral Android experiment for controlling calls on a host phone from a second Android device or desktop browser, using the host's existing cellular number.
 
-[Download the newest Android APK](https://github.com/richbeatty/PhnLnk/releases)
+[Download the latest APK](https://github.com/richbeatty/PhnLnk/releases)
 
-## Getting started
+## Setup
 
-**On the phone with your SIM:**
+On the phone with your cellular SIM, choose **This phone has my SIM**. On the second Android device, install the same APK and choose **Connect to my other phone**. On the host, tap **Pair a device** and scan the QR code with the secondary Android device, or enter the local IP and six-digit code.
 
-1. Install PhnLnk and choose **This phone has my SIM**.
-2. Allow the phone permissions. The phone starts its local host service.
-3. Tap **Pair a device**. A QR code and six-digit code appear.
+Pairing is remembered until you explicitly disconnect or revoke it. If the host's Wi-Fi IP changes, use **Update host Wi-Fi address** on the companion. You do not need to pair again simply because the IP changed. The host and companion services now attempt to resume after a phone restart where Android permits foreground services.
 
-**On a second Android device:**
+For a desktop PC, use the address displayed on the host and enter the six-digit code. The browser remembers its pairing.
 
-1. Install the same APK and choose **Connect to my other phone**.
-2. Scan the QR displayed on the host to open PhnLnk and pair automatically. If your camera doesn't open the app link, enter the Wi-Fi IP and six-digit code manually.
-3. The app remembers the connection and can start incoming-call alerts with notification permission.
-4. Use **Dial** for the full number pad or **Contacts** to find a contact stored on the second Android device.
+## Call features
 
-**On a PC:**
+- Numeric dial pad for dialing.
+- Search local contacts on the secondary Android device.
+- Favorites and recent requests.
+- Incoming call status and user-enabled notifications on the companion.
+- Remote request to dial, answer, or end cellular calls.
+- **New: optional in-call keypad tones** on the secondary Android and browser. During an active call, pressing a keypad button sends its tone to the host, but only when the host is the Android default Phone app and its InCallService is active.
 
-1. Open the private Wi-Fi address displayed by the host in a browser.
-2. Enter the six-digit code (you only do this once per browser).
-3. Use the dial pad or choose a number from the local recent dial-request list.
+### Turn on in-call keypad tones
 
-The six-digit code expires after five minutes and works only once. Each paired device gets its own random token. The host can revoke all tokens from **Forget all paired devices**.
+On the **host** open PhnLnk and choose **Enable in-call keypad**. Android asks whether to make PhnLnk your default Phone app. This is required by Android to access the call's DTMF functionality. It is optional and requires explicit approval. You can change back under Android **Settings > Apps > Default apps > Phone**.
 
-## Features in v0.3
+**Please test ordinary incoming and outgoing calls on your phone before relying on the new dialer role.** The experimental PhnLnk in-call service provides an incoming call notification, answer/end controls, and an in-call keypad. It does not intentionally turn on the screen, show over the lock screen, or open full-screen activities automatically. Android or the manufacturer may still wake the screen when a call arrives. This is best-effort screen behavior, not a promise that the display will stay off.
 
-- Same APK for a host or Wi-Fi-only Android tablet.
-- Phone role selection without any manufacturer or carrier branding.
-- Outgoing cellular call requests using the host's own SIM.
-- Incoming ringing status, remote **Answer** and **End call** controls.
-- Number pad on the Android companion and PC browser.
-- Contacts search on the companion using *that device's own contacts*. Contacts are **not uploaded** to the host or any cloud.
-- Favorites and last 20 dial attempts stored on the companion device.
-- Optional foreground monitoring on the companion that notifies when a call starts ringing on the host. Tapping the alert opens the call-control screen.
-- Private LAN pairing by QR code or six-digit one-time code.
-- Pairing stored on the device so it does not need to be repeated each time.
-- No Shizuku, rooting or carrier changes required **for call control**.
+Without approving default Phone app, normal remote **Dial**, **Answer**, and **End call** controls remain available as before. In-call keypad tones are unavailable.
 
-## Major limitation
+## The important limitation
 
-**This is not yet an all-in-one remote phone.** The host can initiate/answer/end cellular calls, but Android's ordinary app APIs do **not** allow the remote companion's microphone and speaker to carry the live cellular audio. When you answer through PhnLnk, the conversation still happens through the host phone.
+**PhnLnk does not yet carry two-way cellular audio to a secondary device.** A second device can send commands but it cannot take part in the voice conversation. Answering a call still leaves the audio on the host phone. The Android APIs for injecting/capturing cellular audio are restricted. No normal-app-only solution has been verified on the user's host device. This release does not require Shizuku or root.
 
-That means actual remote conversations, caller ID for incoming calls, in-call touch tones, and remote access away from home are **not implemented**. PhnLnk is a call-control preview, not a Beeper equivalent or a replacement for a phone.
+PhnLnk operates on the same private local network and uses an HTTP server with bearer-token authentication. **The traffic is not encrypted.** Do not expose port 47321 to the internet or use an untrusted network. It is not a substitute for the system phone app for emergencies.
 
-## Security
+## Signing and updating without uninstalling
 
-The host runs an HTTP server on port 47321. Requests have authorization tokens, but network traffic **is not encrypted**. Only connect while on a private, trusted Wi-Fi. Do not forward the HTTP port or expose it to the public internet. Do not use public Wi-Fi or put sensitive call or contact information through this prototype. Contacts stay local on the secondary Android device.
+Previous GitHub Actions builds used a *different automatically generated debug certificate for each build*. Android correctly refuses to update an app signed by a different certificate. A later build cannot fix or impersonate the existing lost certificate.
 
-Incoming alerts require notification permission and an active foreground monitoring service. Background monitoring is experimental and depends on Android battery restrictions.
+From v0.4 onward, the build can use one permanent signing key provided through encrypted GitHub Actions secrets:
 
-The dialer is limited to ordinary US/Canadian 10-digit numbers (and +1 numbers) and blocks 900 numbers. Use your normal phone for emergencies.
+- `PHNLNK_KEYSTORE_B64`: Base64 of a PKCS12 keystore with alias `phnlnk`.
+- `PHNLNK_STORE_PASSWORD`: The keystore password, also used for the key.
 
-## Installation notes
+Set these under **GitHub > repository Settings > Secrets and variables > Actions**. There must be no keystore or password committed to this public repository. When both are set, GitHub Actions builds a signed release APK using the permanent key. Future releases signed with that same key and package ID can install over one another.
 
-Early APK releases have been signed with GitHub Actions' temporary debug signing keys. Android may require you to **uninstall the earlier preview before installing this one**. Uninstalling resets the saved pairings on that device.
+**You will still need one final uninstall** moving from a previous temporary debug-signed release to the first permanently signed release. Pairings stored inside the old installation will be lost during that uninstall. Once the permanent signing key is configured, future update installs can preserve app data.
 
-The project needs a stable, securely stored signing key for future seamless Android upgrades.
+If the GitHub Actions signing secrets have not been set, the workflow produces another **development debug preview**, clearly identified as such in its release notes. It is not a permanent upgrade path.
+
+Back up your signing key securely. Losing it again means Android cannot install updates over existing installations.
+
+## Technical and privacy notes
+
+- The host's pairing tokens are persisted across process restarts. The six-digit pairing code is short-lived and single use; paired devices receive individual stronger tokens.
+- The host attempts to recover after `BOOT_COMPLETED` or app replacement. Android battery policies and foreground-service restrictions can prevent unattended recovery. Test after reboot.
+- The incoming-call alert service also attempts to recover after restart when enabled.
+- The host does not intentionally acquire a screen wake lock or launch its in-call UI on incoming calls. The OS can still wake the screen.
+- The remote dialer only permits ordinary +1 US/Canadian phone numbers and blocks 900 numbers; never rely on this app for emergency calling.
+- Contacts remain local on the second Android device.
 
 ## Build
 
-JDK 17, Android SDK 35 and Gradle 8.9:
+JDK 17, Android SDK 35, Gradle 8.9:
 
 ```sh
 gradle :app:assembleDebug
 ```
 
-The Android build workflow creates and attaches `PhnLnk-Android.apk` to the matching GitHub release.
-
-## Roadmap
-
-1. Verify host device call control and notifications on multiple models.
-2. Stable APK signing and direct in-app updates.
-3. Improved local device discovery and secure, encrypted pairing.
-4. Incoming caller identification (subject to Android platform restrictions).
-5. Secure remote reachability beyond one Wi-Fi network.
-6. Investigate **genuine two-way cellular call audio** without privileged helpers. This remains the blocking capability and must not be claimed until proven on supported devices.
-7. Call log, contact names, and other conveniences where permissions permit.
+For release signing, provide `PHNLNK_KEYSTORE_FILE` and `PHNLNK_STORE_PASSWORD` environment variables and run `gradle :app:assembleRelease`.
 
 ## License
 
-The original code is MIT. QR encoding uses ZXing core under Apache-2.0. No GPL cellular-audio gateway code is included.
+PhnLnk original code: MIT. QR encoding: ZXing core (Apache-2.0). No third-party privileged audio gateway code is included.

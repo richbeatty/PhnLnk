@@ -14,50 +14,85 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Check preinstalled Android SDK
-        run: |
-          test -f "$ANDROID_HOME/platforms/android-35/android.jar"
-          echo "Android SDK: $ANDROID_HOME"
+
+      - name: Check Android SDK
+        run: test -f "$ANDROID_HOME/platforms/android-35/android.jar"
+
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+
+      - name: Prepare stable signing credentials if configured
+        id: signing
+        env:
+          KEY_BASE64: ${{ secrets.PHNLNK_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.PHNLNK_STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEY_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
+            printf '%s' "$KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/phnlnk-release.p12"
+            echo "PHNLNK_KEYSTORE_FILE=$RUNNER_TEMP/phnlnk-release.p12" >> "$GITHUB_ENV"
+            echo "PHNLNK_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build Android APK
-        run: gradle --no-daemon :app:assembleDebug
-      - name: Prepare installable APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-Android.apk
+        run: |
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            gradle --no-daemon :app:assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk PhnLnk-Android.apk
+          else
+            gradle --no-daemon :app:assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-Android.apk
+          fi
+
+      - name: Record signing status for the release
+        run: |
+          cat > notes.md <<'EOF'
+          Call control preview v0.4.0:
+          * Optional in-call keypad tones (host must be selected as the default Phone app).
+          * Host call notifications avoid launching or waking PhnLnk UI.
+          * Background connection recovery after phone reboot, where Android permits.
+          * Change the host IP without losing saved pairing.
+          * Keep the same host and companion roles and contacts.
+
+          CRITICAL LIMITATION: This is not two-way remote calling.
+          The companion device still cannot hear or speak over a cellular call.
+          Android may independently wake the host screen.
+          Use on trusted private Wi-Fi only. No emergency calls.
+          EOF
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            echo "" >> notes.md
+            echo "Signing: persistent release key. Later releases using this key should update in place." >> notes.md
+          else
+            echo "" >> notes.md
+            echo "Signing: temporary debug key. This preview cannot reliably update previous debug APKs." >> notes.md
+            echo "Add PHNLNK_KEYSTORE_B64 and PHNLNK_STORE_PASSWORD repository secrets for persistent signing." >> notes.md
+          fi
+
       - name: Save APK in Actions
         uses: actions/upload-artifact@v4
         with:
-          name: PhnLnk-Android-debug
+          name: PhnLnk-Android
           path: PhnLnk-Android.apk
           if-no-files-found: error
-      - name: Publish downloadable GitHub release
+
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.3.0
+          tag_name: v0.4.0
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.3.0 Android companion preview
+          name: PhnLnk v0.4.0 call controls preview
           prerelease: true
           make_latest: true
           fail_on_unmatched_files: true
           files: PhnLnk-Android.apk
-          body: |
-            Same APK for the Android host phone and the secondary Android device.
-            NEW: native Android companion mode, dial pad, contacts, favorites,
-            recent dial requests, and opt-in incoming call alerts.
-            NEW: device-neutral branding and a dial pad for PC browsers.
-            Pair once via QR scan or local IP and six-digit code.
-
-            IMPORTANT: only call control works. You cannot have a two-way
-            voice conversation from the secondary device. Audio stays on the
-            SIM phone. Local trusted Wi-Fi only; unencrypted HTTP is not safe
-            on public networks. No Shizuku or root needed.
-            Do not rely on PhnLnk for emergency calls.
-            This GitHub Actions preview uses a temporary debug signing key.
-            You may need to uninstall the previous preview to install it.
+          body_path: notes.md

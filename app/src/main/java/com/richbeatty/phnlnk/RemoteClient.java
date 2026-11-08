@@ -19,6 +19,14 @@ final class RemoteClient {
         return c.getSharedPreferences(STORE, Context.MODE_PRIVATE).getString("host", "");
     }
 
+    static void changeAddress(Context c, String newAddress) {
+        if (!isPaired(c)) throw new IllegalStateException("Pair this device first");
+        String normalized = normalizeHost(newAddress);
+        boolean saved = c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
+                .putString("host", "http://" + normalized + ":" + Config.PORT).commit();
+        if (!saved) throw new IllegalStateException("Could not save the new address");
+    }
+
     static boolean isPaired(Context c) {
         return !address(c).isEmpty() && !token(c).isEmpty();
     }
@@ -76,11 +84,12 @@ final class RemoteClient {
     }
 
     static JSONObject call(Context c, String action, String number) throws Exception {
-        if (!("dial".equals(action) || "answer".equals(action) || "end".equals(action))) {
+        if (!("dial".equals(action) || "answer".equals(action) || "end".equals(action) || "dtmf".equals(action))) {
             throw new IllegalArgumentException("Unsupported call action");
         }
         JSONObject body = new JSONObject();
         if ("dial".equals(action)) body.put("number", number == null ? "" : number);
+        if ("dtmf".equals(action)) body.put("digit", number == null ? "" : number);
         return request(address(c), token(c), "POST", "/api/" + action, body);
     }
 
