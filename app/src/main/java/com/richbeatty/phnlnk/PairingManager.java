@@ -94,7 +94,25 @@ final class PairingManager {
         return false;
     }
 
+    /**
+     * Proof-of-possession authentication for the encrypted LAN voice socket.
+     * No bearer token is sent over the network. Host stores only SHA-256 of
+     * pairing tokens; a companion derives that same secret locally.
+     */
+    synchronized byte[] findVoiceKey(byte[] serverNonce, byte[] clientNonce,
+                                      byte[] proof) throws Exception {
+        byte[] matched = null;
+        for (String known : prefs.getStringSet("keys", new HashSet<>())) {
+            if (!known.matches("[0-9a-f]{64}")) continue;
+            byte[] key = VoiceSecureTransport.fromHex(known);
+            byte[] expected = VoiceSecureTransport.proof(key,"client",serverNonce,clientNonce);
+            if (MessageDigest.isEqual(expected,proof)) matched = key;
+        }
+        return matched;
+    }
+
     synchronized void forgetAll() {
+        VoiceRelayServer.disconnectActive();
         if (!prefs.edit().remove("keys").commit())
             throw new IllegalStateException("Could not clear devices");
         cancel();

@@ -50,7 +50,8 @@ public final class ClientActivity extends Activity {
     private LinearLayout callControls;
     private final ArrayList<Button> navigation = new ArrayList<>();
     private EditText number, search;
-    private Button dial, answer, end, alerts;
+    private Button dial, answer, end, alerts, voice, muteVoice, voiceRoute;
+    private TextView voiceStatus;
     private String tab = "Dial";
     private boolean contactsLoaded;
     private volatile boolean dtmfReady;
@@ -151,7 +152,7 @@ public final class ClientActivity extends Activity {
         note = PhoneUi.label(this,"",13,PhoneUi.RED,false);
         card.addView(note,PhoneUi.margins(this,12,0));
         root.addView(card);
-        root.addView(PhoneUi.label(this,"Pair once. Your connection is remembered until you disconnect it. Both devices must be on the same trusted private Wi-Fi.",13,PhoneUi.MUTED,false),
+        root.addView(PhoneUi.label(this,"Pair once. Your connection is remembered until you disconnect it. Both devices need a trusted private Wi-Fi connection or an encrypted private VPN. Do not expose the host port publicly.",13,PhoneUi.MUTED,false),
                 PhoneUi.margins(this,15,8));
         root.addView(secondary("Use this device as the main phone",this::changeRole));
     }
@@ -202,6 +203,26 @@ public final class ClientActivity extends Activity {
         callControls.addView(end,PhoneUi.weight(this));
         callControls.setVisibility(View.GONE);
         callCard.addView(callControls);
+        LinearLayout audioControls=PhoneUi.column(this);
+        voice=button("Start voice on this device",this::toggleVoice);
+        audioControls.addView(voice,PhoneUi.margins(this,13,8));
+        LinearLayout audioOptions=PhoneUi.row(this);
+        muteVoice=secondary("Mute microphone",()->{
+            VoiceSessionService.setMuted(!VoiceSessionService.muted());
+            updateVoiceButtons();
+        });
+        voiceRoute=secondary("Use earpiece",()->{
+            VoiceSessionService.setSpeaker(!VoiceSessionService.speaker());
+            updateVoiceButtons();
+        });
+        audioOptions.addView(muteVoice,PhoneUi.weight(this));
+        audioOptions.addView(voiceRoute,PhoneUi.weight(this));
+        audioControls.addView(audioOptions);
+        voiceStatus=PhoneUi.label(this,
+                "Voice uses an encrypted private Wi-Fi connection. Cellular capture on the main phone requires its audio helper.",
+                12,PhoneUi.INK,false);
+        audioControls.addView(voiceStatus,PhoneUi.margins(this,10,0));
+        callCard.addView(audioControls);
         root.addView(callCard,PhoneUi.margins(this,0,13));
 
         note=PhoneUi.label(this,"",13,PhoneUi.RED,false);
@@ -237,7 +258,7 @@ public final class ClientActivity extends Activity {
 
         alerts=secondary("Incoming call alerts",this::toggleAlerts);
         settingsPanel.addView(alerts,PhoneUi.margins(this,0,9));
-        settingsPanel.addView(secondary("Update main phone's Wi-Fi address", () -> {
+        settingsPanel.addView(secondary("Update main phone's private address", () -> {
             EditText field=input("Main phone Wi-Fi IP",InputType.TYPE_CLASS_TEXT);
             String current=RemoteClient.address(this);
             if(current.startsWith("http://")){
@@ -270,6 +291,7 @@ public final class ClientActivity extends Activity {
                     .setNegativeButton("Cancel",null)
                     .setPositiveButton("Disconnect",(dialog,which)->{
                         stopService(new Intent(this,CompanionService.class));
+                        stopService(new Intent(this,VoiceSessionService.class));
                         RemoteClient.forget(this);
                         showPair("","");
                     }).show();
@@ -280,7 +302,58 @@ public final class ClientActivity extends Activity {
         root.addView(toggle);
         root.addView(settingsPanel,PhoneUi.margins(this,10,0));
         updateAlertsButton();
+        updateVoiceButtons();
         fetchStatus();
+    }
+
+    private void toggleVoice() {
+        if(VoiceSessionService.active()) {
+            stopService(new Intent(this,VoiceSessionService.class)
+                    .setAction(VoiceSessionService.ACTION_STOP));
+            if(voiceStatus!=null)voiceStatus.setText("Disconnecting voice...");
+            return;
+        }
+        if(!"active".equals(activeState)){
+            if(voiceStatus!=null)voiceStatus.setText(
+                    "Place or answer a cellular call first, then start voice.");
+            return;
+        }
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                !=PackageManager.PERMISSION_GRANTED){
+            requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},47);
+            return;
+        }
+        startVoice();
+    }
+
+    private void startVoice(){
+        try {
+            startForegroundService(new Intent(this,VoiceSessionService.class)
+                    .setAction(VoiceSessionService.ACTION_START));
+            if(voiceStatus!=null)voiceStatus.setText("Opening encrypted voice...");
+        }catch(Exception error){
+            if(voiceStatus!=null)voiceStatus.setText(
+                    "Cannot start voice: "+error.getMessage());
+        }
+    }
+
+    private void updateVoiceButtons(){
+        if(voice==null)return;
+        boolean connected=VoiceSessionService.active();
+        voice.setText(connected?"Disconnect voice":"Start voice on this device");
+        voice.setEnabled(connected || "active".equals(activeState));
+        if(muteVoice!=null){
+            muteVoice.setVisibility(connected?View.VISIBLE:View.GONE);
+            muteVoice.setText(VoiceSessionService.muted()?
+                    "Unmute microphone":"Mute microphone");
+        }
+        if(voiceRoute!=null){
+            voiceRoute.setVisibility(connected?View.VISIBLE:View.GONE);
+            voiceRoute.setText(VoiceSessionService.speaker()?
+                    "Use earpiece":"Use speaker");
+        }
+        if(voiceStatus!=null && (connected || !"active".equals(activeState)))
+            voiceStatus.setText(VoiceSessionService.state());
     }
 
     private void selectTab(String name) {
@@ -319,7 +392,12 @@ public final class ClientActivity extends Activity {
                 key.setOnClickListener(v->{
                     if("active".equals(activeState)){
                         if(dtmfReady) command("dtmf",digit);
-                        else if(note!=null) note.setText("Menu tones are unavailable without advanced call access on the main phone.");
+                        else if(VoiceSessionService.active()){
+                            VoiceSessionService.sendTone(digit.charAt(0));
+                            if(note!=null)note.setText(
+                                    "Sent in-band keypad tone. Menu detection depends on the cellular network.");
+                        }else if(note!=null)note.setText(
+                                "Start companion voice first to try in-band menu tones.");
                     }else number.append(digit);
                 });
                 line.addView(key,PhoneUi.weight(this));
@@ -541,6 +619,9 @@ public final class ClientActivity extends Activity {
                     if (answer != null) answer.setEnabled("ringing".equals(call));
                     if (end != null) end.setEnabled("ringing".equals(call) || "active".equals(call));
                     if (dial != null) dial.setEnabled("idle".equals(call));
+                    updateVoiceButtons();
+                    if(voiceStatus!=null && "active".equals(call))
+                        voiceStatus.setText(VoiceSessionService.state());
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
@@ -553,6 +634,7 @@ public final class ClientActivity extends Activity {
                     if (dial != null) dial.setEnabled(false);
                     if (answer != null) answer.setEnabled(false);
                     if (end != null) end.setEnabled(false);
+                    updateVoiceButtons();
                 });
             } finally {
                 polling = false;
@@ -594,6 +676,7 @@ public final class ClientActivity extends Activity {
 
     private void changeRole() {
         stopService(new Intent(this, CompanionService.class));
+        stopService(new Intent(this, VoiceSessionService.class));
         getSharedPreferences("mode",MODE_PRIVATE).edit().remove("role").apply();
         startActivity(new Intent(this, MainActivity.class));
         finish();
@@ -602,6 +685,8 @@ public final class ClientActivity extends Activity {
     @Override public void onRequestPermissionsResult(int request, String[] perms, int[] results) {
         super.onRequestPermissionsResult(request, perms, results);
         if (request == 43) startAlertsIfEnabled();
+        if (request == 47 && results.length > 0
+                && results[0] == PackageManager.PERMISSION_GRANTED) startVoice();
         if (request == 44 && checkSelfPermission(Manifest.permission.READ_CONTACTS)
                 == PackageManager.PERMISSION_GRANTED) {
             contactsLoaded = false;

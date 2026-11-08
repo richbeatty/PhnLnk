@@ -35,6 +35,8 @@ final class RemoteClient {
         return c.getSharedPreferences(STORE, Context.MODE_PRIVATE).getString("token", "");
     }
 
+    static String voiceToken(Context c) { return token(c); }
+
     static void forget(Context c) {
         c.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
                 .remove("host").remove("token").apply();
@@ -57,8 +59,11 @@ final class RemoteClient {
         }
         boolean privateAddress = parts[0] == 10 ||
                 (parts[0] == 172 && parts[1] >= 16 && parts[1] <= 31) ||
-                (parts[0] == 192 && parts[1] == 168);
-        if (!privateAddress) throw new IllegalArgumentException("Only private Wi-Fi IP addresses are supported");
+                (parts[0] == 192 && parts[1] == 168) ||
+                // Encrypted private-network overlays (for example a user-managed
+                // Tailscale/WireGuard tunnel), not public WAN or port forwarding.
+                (parts[0] == 100 && parts[1] >= 64 && parts[1] <= 127);
+        if (!privateAddress) throw new IllegalArgumentException("Only private Wi-Fi or authenticated VPN addresses are supported");
         return parts[0] + "." + parts[1] + "." + parts[2] + "." + parts[3];
     }
 

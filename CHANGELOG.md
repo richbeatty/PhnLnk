@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.9.0, encrypted two-way voice engineering preview
+
+- Implemented shell-side full-duplex 16 kHz PCM bridge for an active cellular call, activated only after the user has approved local Wireless Debugging pairing.
+- Tried additional downlink routes: Android call-downlink extraction API, VOICE_DOWNLINK, and VOICE_CALL, with digital-silence fallback while streaming.
+- Tried uplink via call-injection API or explicit TYPE_TELEPHONY audio device. User may override routes on the host, since vendors differ.
+- Implemented paired-device challenge-response voice authentication with HMAC-SHA256 and AES-256-GCM media frames, separate per-direction keys and monotonically increasing sequence numbers.
+- New host LAN voice listener on port 47322, independent of ordinary HTTP call controls. The shell helper remains on loopback only.
+- Companion microphone foreground service, encrypted uplink/downlink, speaker/earpiece control, mute, and on-screen voice-session status.
+- Added in-band DTMF tone fallback when the stock dialer cannot provide telecom DTMF controls. Detection by IVRs is not guaranteed.
+- Preserved pairing, prevented concurrent voice connections, and terminated active media if pairings are revoked or the companion disconnects.
+- Supported private-network VPN addresses in addition to local RFC1918 Wi-Fi addresses. A VPN must be separately configured. Do NOT forward ports to the public Internet.
+- No new default Phone app role, root, Shizuku, number porting, SIM or carrier change, or additional hardware.
+- This is an engineering preview, NOT verified working cellular voice on the user's exact MP01. Android can still yield silent call audio or an inaudible uplink. Incoming/outgoing, background, roaming, and WAN behavior need hardware tests.
+
+
 ## v0.8.2, Android Stream closed failure
 
 - Tracked the reported error to a documented libadb-android 3.1.1 wireless ADB stream-close defect (GitHub issue #34, PR #35).

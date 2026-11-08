@@ -15,6 +15,7 @@ public final class GatewayService extends Service {
     private static final String CHANNEL = "phnlnk_host";
     private static volatile boolean running = false;
     private HttpBridge bridge;
+    private VoiceRelayServer voice;
 
     static boolean isRunning() {
         return running;
@@ -56,8 +57,12 @@ public final class GatewayService extends Service {
         try {
             bridge = new HttpBridge(this);
             bridge.start();
+            voice = new VoiceRelayServer(this);
+            voice.start();
             running = true;
         } catch (Exception exception) {
+            if (voice != null) {voice.close();voice=null;}
+            if (bridge != null) {bridge.close();bridge=null;}
             Toast.makeText(this, "PhnLnk: " + exception.getMessage(), Toast.LENGTH_LONG).show();
             stopSelf();
             return START_NOT_STICKY;
@@ -71,6 +76,10 @@ public final class GatewayService extends Service {
         if (bridge != null) {
             bridge.close();
             bridge = null;
+        }
+        if (voice != null) {
+            voice.close();
+            voice = null;
         }
         super.onDestroy();
     }

@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 13,
-        "The versionCode must be at least 13 and increase on subsequent releases")
-require("versionName '0.8.2'" in gradle,
+require(match is not None and int(match.group(1)) >= 14,
+        "The versionCode must be at least 14 and increase on subsequent releases")
+require("versionName '0.9.0'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -92,6 +92,34 @@ require("TimeoutException" in host_adb and "future.get(14000" in host_adb,
         "ADB commands must have a bounded wait, never stick on Connecting forever")
 require("setManualPort(this,port)" in audio_ui,
         "Keep an optional manual connection-port recovery control")
+voice_secure = content("app/src/main/java/com/richbeatty/phnlnk/VoiceSecureTransport.java")
+voice_server = content("app/src/main/java/com/richbeatty/phnlnk/VoiceRelayServer.java")
+voice_client = content("app/src/main/java/com/richbeatty/phnlnk/VoiceSessionService.java")
+voice_daemon = content("shellprobe/src/com/richbeatty/phnlnk/shell/AudioProbe.java")
+require("AES/GCM/NoPadding" in voice_secure and "HmacSHA256" in voice_secure,
+        "Voice must have authenticated encrypted transport, not plaintext streaming")
+require("findVoiceKey" in pairing and "disconnectActive()" in pairing,
+        "Keep voice auth bound to persisted pairings and revoke live sessions")
+require('writeUTF("STREAM:"' in voice_server,
+        "The host must route encrypted audio through the shell helper")
+require("MediaRecorder.AudioSource.VOICE_DOWNLINK" in voice_daemon and
+        "getCallDownlinkExtractionAudioRecord" in voice_daemon,
+        "Retain alternate cellular downlink backends for silent devices")
+require("getCallUplinkInjectionAudioTrack" in voice_daemon and
+        "AudioDeviceInfo.TYPE_TELEPHONY" in voice_daemon,
+        "Retain alternate outgoing cellular audio routes")
+require("AudioRecord" in voice_client and "AudioTrack" in voice_client and
+        "FOREGROUND_SERVICE_TYPE_MICROPHONE" in voice_client,
+        "Companion needs real mic/speaker with foreground microphone access")
+require("VoiceSessionService" in client and "sendTone" in client,
+        "Retain companion voice button and in-band keypad fallback")
+require("FOREGROUND_SERVICE_MICROPHONE" in manifest and
+        'android:name=".VoiceSessionService"' in manifest,
+        "Android manifest must declare microphone foreground service")
+require('status.put("audioRelayed", false)' in core,
+        "Do not claim the cellular audio is verified before real hardware tests")
+
+
 require('openStream("exec:sh")' in host_adb,
         "Use a persistent exec:sh session, not repeated short-lived ADB shells")
 require('openStream("shell:' not in host_adb,

@@ -122,12 +122,26 @@ public final class HostAudioActivity extends Activity {
         LinearLayout test = PhoneUi.card(this);
         test.addView(PhoneUi.label(this,"Test cellular audio",22,PhoneUi.INK,true));
         test.addView(PhoneUi.label(this,
-                "After the helper reports ready, use your normal Phone app to call a consenting person. These tests do not save recordings.",
+                "With a consenting person on an active call, test the available Android call-audio routes. Audio is never saved. Then try the encrypted companion voice connection.",
                 14,PhoneUi.MUTED,false),PhoneUi.margins(this,10,15));
+        final Button captureMethod=secondaryButton(
+                "Incoming capture: "+AudioAccessState.captureMethod(this),()->{});
+        captureMethod.setOnClickListener(v->{
+            captureMethod.setText("Incoming capture: "+AudioAccessState.cycleCapture(this));
+            testResult.setText("Capture route saved for the next voice connection.");
+        });
+        test.addView(captureMethod,PhoneUi.margins(this,0,8));
+        final Button uplinkMethod=secondaryButton(
+                "Outgoing audio: "+AudioAccessState.uplinkMethod(this),()->{});
+        uplinkMethod.setOnClickListener(v->{
+            uplinkMethod.setText("Outgoing audio: "+AudioAccessState.cycleUplink(this));
+            testResult.setText("Uplink route saved for the next voice connection.");
+        });
+        test.addView(uplinkMethod,PhoneUi.margins(this,0,12));
         capture = secondaryButton("Check incoming call sound", () ->
                 new AlertDialog.Builder(this)
                         .setTitle("Measure call audio?")
-                        .setMessage("This checks about two seconds of live audio level during a call. No audio is saved. Only proceed with the other caller's permission.")
+                        .setMessage("This checks each available cellular audio source while the other person is talking. No audio is recorded or saved. Only proceed with the caller's permission.")
                         .setNegativeButton("Cancel",null)
                         .setPositiveButton("Test",(dialog,which)->
                                 runTest("CAPTURE","Measuring call audio..."))
@@ -139,7 +153,9 @@ public final class HostAudioActivity extends Activity {
                         .setMessage("First tell the person on the call that you are sending a quiet half-second beep. Their confirmation is required to prove that it reached the caller.")
                         .setNegativeButton("Cancel",null)
                         .setPositiveButton("Play tone",(dialog,which)->
-                                runTest("INJECT","Sending test tone..."))
+                                runTest("AUTO".equals(AudioAccessState.uplinkMethod(this)) ?
+                                        "INJECT" : "INJECT:"+AudioAccessState.uplinkMethod(this),
+                                        "Sending test tone..."))
                         .show());
         test.addView(inject,PhoneUi.margins(this,9,0));
         testResult = PhoneUi.label(this,"No audio test has been run.",14,PhoneUi.INK,false);
@@ -148,7 +164,7 @@ public final class HostAudioActivity extends Activity {
         root.addView(test,PhoneUi.margins(this,13,0));
 
         root.addView(PhoneUi.label(this,
-                "Important: A successful pairing or helper test does not mean the second Android device can carry cellular audio. Actual two-way calling still needs an audio bridge and testing on this phone. Never use this prototype for emergency calls.",
+                "The encrypted companion voice transport is implemented, but Android may still return silence or route outgoing audio incorrectly. Only a live two-way test with another person can verify this firmware. Use the normal Phone app for emergency calls.",
                 13,PhoneUi.MUTED,false),PhoneUi.margins(this,14,0));
         refreshState();
     }

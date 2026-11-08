@@ -99,7 +99,7 @@ public final class CompanionService extends Service {
         Notification call = new Notification.Builder(this, INCOMING)
                 .setSmallIcon(android.R.drawable.ic_menu_call)
                 .setContentTitle("Incoming call on your phone")
-                .setContentText("Tap to open call controls. Audio stays on the host phone.")
+                .setContentText("Tap to open call controls. Open PhnLnk to answer and connect voice (if host supports audio).")
                 .setCategory(Notification.CATEGORY_CALL)
                 .setPriority(Notification.PRIORITY_HIGH)
                 .setAutoCancel(true)

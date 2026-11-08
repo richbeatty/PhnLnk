@@ -24,6 +24,28 @@ Even if the local helper reports ready, two-way cellular audio on the second And
 
 This error is documented upstream in the exact ADB library PhnLnk uses: [libadb issue #34](https://github.com/MuntashirAkon/libadb-android/issues/34). PhnLnk v0.8.2 replaces short-lived ADB shell commands with a persistent shell and a single fresh-connection retry. Update over the previous permanently signed 0.8.1 APK without uninstalling. Keep the existing Android debugging pairing. Retry audio setup and report the precise new stage if it fails. The fix is compiled but is not yet validated on the MP01.
 
+## Experimental encrypted two-way voice (v0.9.0)
+
+PhnLnk now contains an end-to-end encrypted media transport and an opt-in cellular audio bridge. **The MP01's actual cellular capture and injection are not verified.** Some Android ROMs provide silence even after the audio service initializes successfully. The app must not be described as a proven cellular voice solution until a live caller hears the other person in both directions.
+
+On the main SIM phone:
+
+1. Install the permanently signed APK on top of your current signed build. Keep the existing Android Phone app as the default.
+2. In **Guided audio setup**, ensure Android-approved Wireless Debugging pairing reports Helper ready. The V2 daemon replaces the old V1 audio probe when you reconnect.
+3. During a live call with a consenting person, use **Check incoming call sound** to see which backend has a nonzero RMS/peak. If AUTO remains silent, cycle **Incoming capture** among REDIRECT, DOWNLINK and CALL.
+4. Use **Send quiet audio test tone**. If the person cannot hear it, try **Outgoing audio: TELEPHONY** or **REDIRECT**, selecting a new call test each time.
+
+On the paired companion Android phone:
+
+1. Ensure the main phone is reachable over private Wi-Fi or an authenticated VPN.
+2. Place or answer a normal cellular call through PhnLnk, then tap **Start voice on this device**. Grant Android's microphone permission.
+3. The foreground microphone service will connect to the host's encrypted voice socket, capture mic speech and play incoming PCM through the companion speaker. A notification provides a way to disconnect. Mute, earpiece and speaker controls are available.
+4. The in-call keypad will attempt standard telecom DTMF if available, otherwise it can send in-band tones through the voice stream. Networks and IVRs may not detect those tones.
+
+**Security:** Only audio on port 47322 is end-to-end AES-256-GCM encrypted with HMAC proof-of-possession from the existing paired device token. The existing HTTP call-control and pairing port 47321 still uses plaintext HTTP; **never expose either port to the public Internet**. To use the app outside home, configure a trusted private encrypted VPN between both devices. PhnLnk does not currently install a VPN, create a cloud relay, or provide turnkey internet access.
+
+**Limitations:** Live capture and injection vary by Android firmware, screen-off persistence and incoming call notifications are not exhaustively tested, the phone must retain Wireless Debugging availability for shell helper startup, no remote audio is guaranteed, and there is no claimed emergency calling support. If the phone firmware does not expose true cellular audio, software transport changes will not bypass that hardware restriction.
+
 ## What works
 
 - The host phone can request outgoing cellular calls through Android Telecom without becoming the default Phone app.

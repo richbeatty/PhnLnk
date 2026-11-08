@@ -21,3 +21,8 @@ PhnLnk has a permanent product contract. Do not invent dependencies, promise cap
 15. Never commit passwords, signing keystores, ADB private keys, phone numbers, or call recordings.
 
 A build passing CI does not demonstrate cellular voice audio. Respect Android and carrier constraints. Do not use experimental PhnLnk for emergency calls.
+
+## v0.9.0 voice architecture
+
+The owner requested an aggressive implementation of two-way audio. New code implements an encrypted LAN PCM transport and alternative shell-UID cellular audio backends. Read MAINTAINER.md and docs/AUDIO_TESTING.md. **Do not call this verified**: the MP01 previously returned silent VOICE_CALL audio and has not yet confirmed the alternate routes or uplink. Do not market this as internet-ready: the control server still uses unencrypted HTTP, so only trusted private Wi-Fi or an independently provisioned private VPN is acceptable. Preserve companion RECORD_AUDIO permission, microphone foreground service, cryptographic authentication, token revocation disconnect, directional GCM counters, optional audio method selection, and user-visible limitations. Do not add root, Shizuku, a third hardware gateway or force default Phone role.
+

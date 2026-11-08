@@ -47,7 +47,7 @@ public final class AudioAccessService extends Service {
                     String reply;
                     try { reply = AudioProbeClient.request(AudioAccessService.this,"PING"); }
                     catch (Exception ignored) { reply = ""; }
-                    if (!reply.startsWith("READY:V1:")) {
+                    if (!reply.startsWith("READY:V2:")) {
                         if (!AudioAccessState.isPaired(AudioAccessService.this)) {
                             AudioAccessState.set(AudioAccessService.this,
                                     AudioAccessState.NEEDS_PAIRING,
@@ -60,11 +60,11 @@ public final class AudioAccessService extends Service {
                                             AudioAccessState.CONNECTING, step));
                         }
                     }
-                    ready = reply.startsWith("READY:V1:");
+                    ready = reply.startsWith("READY:V2:");
                     if (ready) {
                         AudioAccessState.set(AudioAccessService.this,
                                 AudioAccessState.READY,
-                                "Shell audio test helper is running. Cellular audio is NOT yet verified.");
+                                "Cellular audio bridge process ready. Host capture and uplink still require real call tests.");
                     }
                 } catch (Exception error) {
                     String msg = error.getMessage() == null ? "Unknown connection error" : error.getMessage();

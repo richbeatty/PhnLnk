@@ -55,6 +55,20 @@ PhnLnk's 0.8.1 version opened an independent `shell:` stream for each helper set
 
 **Do not reintroduce short-lived ADB shell streams** until the underlying dependency is fixed and verified on MP01. Do not claim this transport change proves cellular audio injection, capture, or internet voice streaming. The user may need to keep Wireless Debugging enabled to reconnect.
 
+## v0.9.0 technical voice transport, November 7, 2026
+
+The user requested implementation of the full audio path rather than further isolated audio tests. Source now includes an **experimental** end-to-end 16 kHz bidirectional PCM relay:
+
+- Shell helper exposes an authenticated loopback-only STREAM command, with redirect, VOICE_DOWNLINK and VOICE_CALL capture options, and redirect or TYPE_TELEPHONY injection.
+- Host private-network port 47322 accepts only paired devices via HMAC challenge/response against the saved SHA-256 token fingerprints. Voice PCM is independently encrypted using directional AES-256-GCM with replay-protected packet counters; bearer tokens are not transmitted on the voice socket.
+- Companion foreground microphone service starts only after explicit user action and RECORD_AUDIO permission. It plays downlink and sends mic uplink over the authenticated stream, with mute, speaker route and approximate in-band DTMF.
+- Pairing revocation disconnects active voice sockets. The normal HTTP call-control transport on port 47321 is unchanged, **unencrypted** and cannot be port forwarded safely. WAN access requires an authenticated private VPN already configured on both devices; the app does not include or provision a public relay.
+- Default Phone role remains unrequested. The existing AT&T number, SIM, primary Phone application and phone carrier are unchanged.
+
+**CRITICAL:** The host side had previously reported SILENT_OR_MUTED for VOICE_CALL source. The new routes have NOT been tested on the specific MP01. A successful build, shell helper state, AES voice socket, or successful capture setup cannot prove far-end audible sound or audio injection. Do not advertise full functionality unless both directions are tested on real incoming/outgoing calls. Capture fallback may switch after several seconds of digital silence; caller quietness can also trigger fallback. The companion voice interface is a feature preview, not a verified calling solution.
+
+The user may later permit the default-dialer role only if a real, useful benefit is demonstrated, not merely for receiving normal call control. Keep the old phone app until they explicitly agree.
+
 ## Release signing incident and remediation
 
 Versions 0.1 through 0.6 were generally produced with GitHub-hosted runner debug certificates. Those certificates change between builds. An APK update fails when the certificate does not match the installed version. A new APK cannot bypass this rule.

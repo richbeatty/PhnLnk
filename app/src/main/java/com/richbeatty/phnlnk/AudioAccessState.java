@@ -32,6 +32,37 @@ final class AudioAccessState {
                 Context.MODE_PRIVATE).getBoolean("adb_paired", false);
     }
 
+    static String captureMethod(Context context) {
+        String value=prefs(context).getString("capture_backend","AUTO");
+        return "REDIRECT".equals(value)||"DOWNLINK".equals(value)||"CALL".equals(value)
+                ?value:"AUTO";
+    }
+
+    static String uplinkMethod(Context context) {
+        String value=prefs(context).getString("uplink_backend","AUTO");
+        return "REDIRECT".equals(value)||"TELEPHONY".equals(value)?value:"AUTO";
+    }
+
+    static String cycleCapture(Context context) {
+        String[] methods={"AUTO","REDIRECT","DOWNLINK","CALL"};
+        String current=captureMethod(context);
+        int next=0;
+        for(int i=0;i<methods.length;i++)if(methods[i].equals(current))next=(i+1)%methods.length;
+        String selected=methods[next];
+        prefs(context).edit().putString("capture_backend",selected).apply();
+        return selected;
+    }
+
+    static String cycleUplink(Context context) {
+        String[] methods={"AUTO","REDIRECT","TELEPHONY"};
+        String current=uplinkMethod(context);
+        int next=0;
+        for(int i=0;i<methods.length;i++)if(methods[i].equals(current))next=(i+1)%methods.length;
+        String selected=methods[next];
+        prefs(context).edit().putString("uplink_backend",selected).apply();
+        return selected;
+    }
+
     static int manualPort(Context context) {
         int port = prefs(context).getInt("manual_port", 0);
         return port >= 1024 && port <= 65535 ? port : 0;

@@ -27,6 +27,10 @@ final class CallController {
         status.put("hasTelephony", context.getPackageManager()
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY));
         status.put("audioRelayed", false);
+        status.put("voiceTransportActive", VoiceRelayServer.isBusy());
+        status.put("voiceHostHelperReady", AudioAccessState.READY.equals(
+                AudioAccessState.state(context)));
+        status.put("voiceTransportSupported", true); // Firmware audio still unverified.
         status.put("dtmfReady", PhoneInCallService.canSendDtmf());
         status.put("defaultDialerRequiredForDtmf", !PhoneInCallService.canSendDtmf());
 
