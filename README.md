@@ -21,7 +21,7 @@ PhnLnk will not ask you to become the default Phone app or enable debugging duri
 
 The current HTTP call-control service is limited to a trusted local network and is not a secure internet calling service. Never forward port 47321 publicly. Do not use PhnLnk for emergency calls.
 
-See [app-only audio research](docs/APP_ONLY_AUDIO_PLAN.md) for the technical investigation. Working two-way voice is a hard release gate, not a checkbox satisfied by an APK compilation.
+See [app-only audio research](docs/APP_ONLY_AUDIO_PLAN.md) | [complete number-sharing and Beeper research](docs/CALL_RESEARCH_2026.md) for the technical investigation. Working two-way voice is a hard release gate, not a checkbox satisfied by an APK compilation.
 
 ## Getting started with the current prototype
 
