@@ -57,17 +57,24 @@ jobs:
       - name: Record signing status for the release
         run: |
           cat > notes.md <<'EOF'
-          Call control preview v0.4.0:
-          * Optional in-call keypad tones (host must be selected as the default Phone app).
-          * Host call notifications avoid launching or waking PhnLnk UI.
-          * Background connection recovery after phone reboot, where Android permits.
-          * Change the host IP without losing saved pairing.
-          * Keep the same host and companion roles and contacts.
+          Experimental Bluetooth voice bridge preview v0.5.0:
+          * NEW: optional embedded SIP client for real two-way voice on a secondary Android device.
+          * Requires a nearby Linux Bluetooth HFP-to-SIP gateway such as Asterisk chan_mobile.
+          * Calls still use the original SIM number through the main phone's Bluetooth hands-free route.
+          * Optional voice mode with microphone/speaker, answer/hangup and SIP keypad tones.
+          * Keystore-encrypted SIP credentials and foreground SIP registration.
+          * Existing direct call-control mode remains available without extra hardware.
+          * No Shizuku or root on either Android phone.
 
-          CRITICAL LIMITATION: This is not two-way remote calling.
-          The companion device still cannot hear or speak over a cellular call.
-          Android may independently wake the host screen.
-          Use on trusted private Wi-Fi only. No emergency calls.
+          IMPORTANT:
+          * This is NOT an app-only cellular audio bypass.
+          * You need Linux Bluetooth gateway hardware and a working SIP server on a trusted LAN.
+          * The host phone and Bluetooth gateway compatibility have not been tested.
+          * Do not open SIP/RTP or PhnLnk's call-control HTTP port to the public internet.
+          * Never use experimental PhnLnk for emergency calls.
+          * Liblinphone is AGPLv3; this combined APK must meet AGPLv3 obligations.
+          * Source: https://github.com/richbeatty/PhnLnk
+          * Setup: https://github.com/richbeatty/PhnLnk/blob/main/docs/VOICE_SETUP.md
           EOF
           if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
             echo "" >> notes.md
@@ -88,9 +95,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.4.0
+          tag_name: v0.5.0
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.4.0 call controls preview
+          name: PhnLnk v0.5.0 call controls preview
           prerelease: true
           make_latest: true
           fail_on_unmatched_files: true

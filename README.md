@@ -1,76 +1,64 @@
 # PhnLnk
 
-A device-neutral Android experiment for controlling calls on a host phone from a second Android device or desktop browser, using the host's existing cellular number.
+**One Android app, two roles.** The main phone keeps its cellular SIM and number. A secondary Android device can dial, browse local contacts, send keypad tones, receive incoming-call alerts, and control calls.
 
-[Download the latest APK](https://github.com/richbeatty/PhnLnk/releases)
+[Download PhnLnk](https://github.com/richbeatty/PhnLnk/releases/latest)
 
-## Setup
+## The cellular voice breakthrough, optional beta
 
-On the phone with your cellular SIM, choose **This phone has my SIM**. On the second Android device, install the same APK and choose **Connect to my other phone**. On the host, tap **Pair a device** and scan the QR code with the secondary Android device, or enter the local IP and six-digit code.
+An ordinary Android app cannot capture and inject native carrier call audio through public APIs. **PhnLnk 0.5 adds an experimental real-voice route through a standard Bluetooth hands-free gateway**, the same route used by car kits. It does not require rooting your Android phone or installing Shizuku.
 
-Pairing is remembered until you explicitly disconnect or revoke it. If the host's Wi-Fi IP changes, use **Update host Wi-Fi address** on the companion. You do not need to pair again simply because the IP changed. The host and companion services now attempt to resume after a phone restart where Android permits foreground services.
+```
+Main Android phone with SIM and original cellular number
+  -> Bluetooth HFP (standard call-audio device)
+  -> nearby Linux computer with Bluetooth and Asterisk chan_mobile
+  -> SIP over your private network
+  -> PhnLnk embedded Liblinphone on secondary Android device
+  -> its own microphone and speaker
+```
 
-For a desktop PC, use the address displayed on the host and enter the six-digit code. The browser remembers its pairing.
+**A Linux Bluetooth/SIP gateway is required and must be set up separately.** The extra computer must stay near the main phone. The solution has not been tested end-to-end on the user's hardware and is not yet a polished, app-only Beeper alternative. The voice engine requires SIP registration before making calls. If it is off, PhnLnk falls back to its current control-only functions, which do not carry audio.
 
-## Call features
+See [Bluetooth voice setup](docs/VOICE_SETUP.md) and [extensive research](docs/VOICE_RESEARCH.md).
 
-- Numeric dial pad for dialing.
-- Search local contacts on the secondary Android device.
-- Favorites and recent requests.
-- Incoming call status and user-enabled notifications on the companion.
-- Remote request to dial, answer, or end cellular calls.
-- **New: optional in-call keypad tones** on the secondary Android and browser. During an active call, pressing a keypad button sends its tone to the host, but only when the host is the Android default Phone app and its InCallService is active.
+## Basic pairing
 
-### Turn on in-call keypad tones
+On the phone with your SIM, choose **This phone has my SIM**, grant phone permissions, then **Pair a device**. On the secondary Android device, install the same PhnLnk app and choose **Connect to my other phone**, then scan the QR code or enter the displayed local Wi-Fi IP and six digits. Pairing is remembered until revoked. Desktop browsers can use the URL on the host phone.
 
-On the **host** open PhnLnk and choose **Enable in-call keypad**. Android asks whether to make PhnLnk your default Phone app. This is required by Android to access the call's DTMF functionality. It is optional and requires explicit approval. You can change back under Android **Settings > Apps > Default apps > Phone**.
+PhnLnk works on Wi-Fi-only Android tablets too. All UI is device-neutral.
 
-**Please test ordinary incoming and outgoing calls on your phone before relying on the new dialer role.** The experimental PhnLnk in-call service provides an incoming call notification, answer/end controls, and an in-call keypad. It does not intentionally turn on the screen, show over the lock screen, or open full-screen activities automatically. Android or the manufacturer may still wake the screen when a call arrives. This is best-effort screen behavior, not a promise that the display will stay off.
+## Current features
 
-Without approving default Phone app, normal remote **Dial**, **Answer**, and **End call** controls remain available as before. In-call keypad tones are unavailable.
+- Native Android dial pad, contacts, favorites and last call requests.
+- Desktop browser dial pad and saved pairing.
+- Dial, answer, hang up through the SIM phone over a trusted private LAN.
+- In-call DTMF after selecting PhnLnk as the host phone's default dialer.
+- Incoming call notifications, pairing recovery and user-controlled host background service.
+- Optional **Bluetooth voice calling** with a paired Linux-to-SIP gateway. When registered, the companion's dial pad and contacts use SIP, and real two-way voice uses its microphone/speaker through Liblinphone.
+- Voice gateway SIP credentials encrypted with a key kept in Android Keystore.
+- No Shizuku and no root needed on the Android devices.
 
-## The important limitation
+## Limitations and safety
 
-**PhnLnk does not yet carry two-way cellular audio to a secondary device.** A second device can send commands but it cannot take part in the voice conversation. Answering a call still leaves the audio on the host phone. The Android APIs for injecting/capturing cellular audio are restricted. No normal-app-only solution has been verified on the user's host device. This release does not require Shizuku or root.
+- PhnLnk **cannot relay cellular audio directly between two stock Android phones**. The Bluetooth/SIP hardware route is optional and requires a nearby Linux computer.
+- Ordinary call control uses unencrypted HTTP on the local network. SIP prototype uses UDP/RTP on a private LAN. **Never expose either port to the public internet.** For off-LAN use, you would need a secure private network or properly hardened SIP/TLS and SRTP infrastructure.
+- Bluetooth hardware, SIP registration, voice quality, host wake behavior, background delivery, and call routing must all be verified on the user's devices before production use.
+- Voice service stays online using an opt-in microphone foreground service. Android can stop services after force-stop or battery management; reopening PhnLnk retries.
+- It is not an emergency calling service.
+- A generic Android app cannot override the system's choice to wake the main phone for incoming cellular calls.
 
-PhnLnk operates on the same private local network and uses an HTTP server with bearer-token authentication. **The traffic is not encrypted.** Do not expose port 47321 to the internet or use an untrusted network. It is not a substitute for the system phone app for emergencies.
+## Update signing
 
-## Signing and updating without uninstalling
+GitHub Actions can produce consistently signed releases if `PHNLNK_KEYSTORE_B64` and `PHNLNK_STORE_PASSWORD` repository secrets are configured with a permanent private signing key (PKCS12 alias `phnlnk`). Until then, preview builds use ephemeral debug keys and may require reinstalling rather than updating in place. **Never place signing keys in a public repo.** A previous debug-signed app cannot be updated by a differently signed APK.
 
-Previous GitHub Actions builds used a *different automatically generated debug certificate for each build*. Android correctly refuses to update an app signed by a different certificate. A later build cannot fix or impersonate the existing lost certificate.
+## Build and licenses
 
-From v0.4 onward, the build can use one permanent signing key provided through encrypted GitHub Actions secrets:
-
-- `PHNLNK_KEYSTORE_B64`: Base64 of a PKCS12 keystore with alias `phnlnk`.
-- `PHNLNK_STORE_PASSWORD`: The keystore password, also used for the key.
-
-Set these under **GitHub > repository Settings > Secrets and variables > Actions**. There must be no keystore or password committed to this public repository. When both are set, GitHub Actions builds a signed release APK using the permanent key. Future releases signed with that same key and package ID can install over one another.
-
-**You will still need one final uninstall** moving from a previous temporary debug-signed release to the first permanently signed release. Pairings stored inside the old installation will be lost during that uninstall. Once the permanent signing key is configured, future update installs can preserve app data.
-
-If the GitHub Actions signing secrets have not been set, the workflow produces another **development debug preview**, clearly identified as such in its release notes. It is not a permanent upgrade path.
-
-Back up your signing key securely. Losing it again means Android cannot install updates over existing installations.
-
-## Technical and privacy notes
-
-- The host's pairing tokens are persisted across process restarts. The six-digit pairing code is short-lived and single use; paired devices receive individual stronger tokens.
-- The host attempts to recover after `BOOT_COMPLETED` or app replacement. Android battery policies and foreground-service restrictions can prevent unattended recovery. Test after reboot.
-- The incoming-call alert service also attempts to recover after restart when enabled.
-- The host does not intentionally acquire a screen wake lock or launch its in-call UI on incoming calls. The OS can still wake the screen.
-- The remote dialer only permits ordinary +1 US/Canadian phone numbers and blocks 900 numbers; never rely on this app for emergency calling.
-- Contacts remain local on the second Android device.
-
-## Build
-
-JDK 17, Android SDK 35, Gradle 8.9:
+Java 17, Android SDK 35, Gradle 8.9. Liblinphone's official Maven repository is included in settings.gradle.
 
 ```sh
 gradle :app:assembleDebug
 ```
 
-For release signing, provide `PHNLNK_KEYSTORE_FILE` and `PHNLNK_STORE_PASSWORD` environment variables and run `gradle :app:assembleRelease`.
+PhnLnk's original code is MIT-licensed. The optional integrated Liblinphone SIP engine is AGPLv3, so distribution of the **combined application** is subject to AGPLv3 terms and source availability. See [third-party notices](docs/THIRD_PARTY.md) and the project's public source.
 
-## License
-
-PhnLnk original code: MIT. QR encoding: ZXing core (Apache-2.0). No third-party privileged audio gateway code is included.
+This is an experimental personal app project, not an audited production telecom product.
