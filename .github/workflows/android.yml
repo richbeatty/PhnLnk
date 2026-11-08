@@ -55,6 +55,24 @@ jobs:
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
 
+      - name: Package official Android signing tools for controlled local signing
+        run: |
+          mkdir -p signing_tools
+          APKSIGNER_JAR="$(find "$ANDROID_HOME/build-tools" -path '*/lib/apksigner.jar' -type f | sort -V | tail -n 1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -name zipalign -type f | sort -V | tail -n 1)"
+          test -n "$APKSIGNER_JAR"
+          test -n "$ZIPALIGN"
+          cp "$APKSIGNER_JAR" signing_tools/apksigner.jar
+          cp "$ZIPALIGN" signing_tools/zipalign
+          chmod 755 signing_tools/zipalign
+
+      - name: Upload Android signing tools for private offline signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhnLnk-LOCAL-SIGNING-TOOLS
+          path: signing_tools/
+          if-no-files-found: error
+
       - name: Keep debug test APK as Actions artifact, NOT a release
         uses: actions/upload-artifact@v4
         with:
