@@ -1,4 +1,4 @@
-name: Android APK
+name: Android CI and signed releases
 
 on:
   push:
@@ -15,6 +15,9 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Enforce permanent product requirements
+        run: python3 tools/maintainer_check.py
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -24,93 +27,105 @@ jobs:
       - name: Check Android SDK and D8
         run: |
           test -f "$ANDROID_HOME/platforms/android-35/android.jar"
-          find "$ANDROID_HOME/build-tools" -name d8 -type f | head -n 3
+          test -n "$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name d8 -type f -print -quit)"
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Build local shell-UID audio helper
+      - name: Build existing experimental audio test asset
         run: bash shellprobe/build.sh
 
-      - name: Prepare stable signing credentials if configured
-        id: signing
+      - name: Compile Android debug test artifact
+        run: gradle --no-daemon :app:assembleDebug
+
+      - name: Inspect Android debug test artifact
+        run: |
+          unzip -t app/build/outputs/apk/debug/app-debug.apk | tail -n 1
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -F 'assets/phnlnk-probe.jar'
+
+      - name: Keep debug test APK as Actions artifact, NOT a release
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhnLnk-DEBUG-NOT-UPDATABLE
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Require permanent release signing credentials
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         env:
           KEY_BASE64: ${{ secrets.PHNLNK_KEYSTORE_B64 }}
           STORE_PASSWORD: ${{ secrets.PHNLNK_STORE_PASSWORD }}
         run: |
-          if [ -n "$KEY_BASE64" ] && [ -n "$STORE_PASSWORD" ]; then
-            printf '%s' "$KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/phnlnk-release.p12"
-            echo "PHNLNK_KEYSTORE_FILE=$RUNNER_TEMP/phnlnk-release.p12" >> "$GITHUB_ENV"
-            echo "PHNLNK_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
+          if [ -z "$KEY_BASE64" ] || [ -z "$STORE_PASSWORD" ]; then
+            echo "::error::No release published. Add the permanent PhnLnk signing keystore/password to repository Actions secrets first."
+            exit 1
           fi
+          printf '%s' "$KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/phnlnk-release.p12"
+          chmod 600 "$RUNNER_TEMP/phnlnk-release.p12"
+          echo "PHNLNK_KEYSTORE_FILE=$RUNNER_TEMP/phnlnk-release.p12" >> "$GITHUB_ENV"
+          echo "PHNLNK_STORE_PASSWORD=$STORE_PASSWORD" >> "$GITHUB_ENV"
 
-      - name: Compile PhnLnk for Android
+      - name: Build permanently signed release APK
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         run: |
-          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
-            gradle --no-daemon :app:assembleRelease
-            cp app/build/outputs/apk/release/app-release.apk PhnLnk-Android.apk
-          else
-            gradle --no-daemon :app:assembleDebug
-            cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-Android.apk
-          fi
+          gradle --no-daemon :app:assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk PhnLnk-Android.apk
 
-      - name: Verify probe is actually embedded
+      - name: Verify release signing certificate and APK integrity
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         run: |
-          unzip -l PhnLnk-Android.apk | grep -F 'assets/phnlnk-probe.jar'
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner -type f | sort -V | tail -n 1)"
+          if [ -z "$APKSIGNER" ]; then echo "::error::Android apksigner unavailable"; exit 1; fi
+          "$APKSIGNER" verify --verbose --print-certs PhnLnk-Android.apk
           unzip -t PhnLnk-Android.apk | tail -n 1
 
-      - name: Save release notes
+      - name: Get release version from app/build.gradle
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        id: version
+        run: |
+          VERSION="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n 1)"
+          test -n "$VERSION"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "title=PhnLnk v$VERSION signed control preview" >> "$GITHUB_OUTPUT"
+
+      - name: Create transparent release notes
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         run: |
           cat > notes.md <<'EOF'
-          ## PhnLnk 0.6.0, in-app cellular audio feasibility test
+          This is a PERMANENTLY SIGNED development preview.
 
-          - Same Android host and companion APK, without extra audio hardware or Shizuku.
-          - Host: new guided Wireless Debugging pairing through an Android notification.
-          - Host: uses an embedded ADB client to start a local shell-UID helper.
-          - Host: tests live cellular audio capture without saving or transmitting a recording.
-          - Host: opt-in quiet test tone routed toward the cellular uplink for a consenting test call.
-          - Existing dial pad, contacts, saved pairing, and call controls remain.
+          - Keeps the stock Android Phone app. Does not require the user
+            to make PhnLnk the default dialer.
+          - Does not require enabling Developer options or Wireless Debugging
+            for basic call-control use.
+          - Preserves basic local-network calling controls and saved pairings.
+          - Is NOT yet a two-way remote cellular audio solution.
+          - Does not have an internet-secure relay; do not expose the local server.
+          - Do not use for emergency calls.
 
-          IMPORTANT: this is NOT a finished two-way remote calling app.
-          The host has not yet been tested for both audio directions on the MP01.
-          The secondary Android device still cannot carry the call audio.
-          A one-time Developer options + USB and Wireless Debugging pairing is required.
+          Android updates require the same package ID, higher version code and
+          matching signing certificate. Earlier releases used temporary debug
+          certificates, so migrating from them requires one final uninstall.
+          Future versions signed with this SAME permanent key can update in place.
 
-          The helper binds only to 127.0.0.1 with a random local secret.
-          Use on trusted Wi-Fi. Leave port 47321 off the public internet.
-          Wireless Debugging enables ADB access to previously authorized devices.
-          Test only on calls you control and with the other person's consent.
-          Never use PhnLnk for emergency calls.
+          See MAINTAINER.md for product requirements and current limitations.
           EOF
-          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
-            echo "" >> notes.md
-            echo "Signing: permanent signing key configured. Subsequent same-key versions can update in place." >> notes.md
-          else
-            echo "" >> notes.md
-            echo "Signing: temporary debug key. Install over a previous release may FAIL due to certificate mismatch." >> notes.md
-            echo "Permanent upgrade signing requires PHNLNK_KEYSTORE_B64 and PHNLNK_STORE_PASSWORD in GitHub Actions secrets." >> notes.md
-          fi
 
-      - name: Upload Android APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PhnLnk-Android-debug
-          path: PhnLnk-Android.apk
-          if-no-files-found: error
-
-      - name: Publish preview APK
+      - name: Publish only the permanently signed APK
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.6.0
+          tag_name: ${{ steps.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.6.0 app-only audio capability test
+          name: ${{ steps.version.outputs.title }}
           prerelease: true
-          make_latest: true
+          make_latest: false
           fail_on_unmatched_files: true
           files: PhnLnk-Android.apk
           body_path: notes.md
+
+      - name: Cleanup private signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/phnlnk-release.p12"

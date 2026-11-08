@@ -187,7 +187,7 @@ for (const digit of KEYPAD) {
   button.addEventListener('click',()=>{
     if(callState === 'active') {
       if(dtmfReady) action('dtmf', {digit});
-      else $('message').textContent = 'Enable the in-call keypad on your main phone first.';
+      else $('message').textContent = 'Android restricts live keypad tones to the default Phone app. Use your main phone for call menus.';
     } else {
       $('number').value += digit;
     }

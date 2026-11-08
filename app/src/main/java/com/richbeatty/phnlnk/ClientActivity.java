@@ -258,7 +258,7 @@ public final class ClientActivity extends Activity {
                 Button button = button(key, () -> {
                     if ("active".equals(activeState)) {
                         if (dtmfReady) command("dtmf", key);
-                        else if (note != null) note.setText("Enable the in-call keypad on your main phone first.");
+                        else if (note != null) note.setText("In-call menu tones require Android's default Phone interface; this app cannot send them without that role.");
                     } else {
                         number.append(key);
                     }

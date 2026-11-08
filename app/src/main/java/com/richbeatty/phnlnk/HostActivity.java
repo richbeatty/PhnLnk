@@ -72,30 +72,9 @@ public final class HostActivity extends Activity {
         permissionsButton = button("Allow phone permissions", this::requestPhonePermissions);
         root.addView(permissionsButton);
 
-        root.addView(text("App-only cellular audio", 22));
-        root.addView(text("New: Test live call audio with a built-in Android shell helper. No extra device, root or Shizuku. One-time Wireless Debugging pairing is required. Real voice on the companion is NOT enabled until this phone passes both audio tests.", 13));
-        root.addView(button("Set up and test call audio", () ->
-                startActivity(new Intent(this, HostAudioActivity.class))));
-        root.addView(text("Call features", 22));
-        root.addView(text("To send keypad tones such as press 1 during a call, PhnLnk needs to be selected as your default Phone app. The regular system dialer will be replaced until you change it back.", 13));
-        root.addView(button("Enable in-call keypad", () -> new AlertDialog.Builder(this)
-                .setTitle("Use PhnLnk as default phone app?")
-                .setMessage("This replaces your phone's standard incoming and ongoing call screen with PhnLnk controls. Android will ask permission. You can revert under Settings > Apps > Default apps > Phone. Incoming calls must still be tested on your device.")
-                .setNegativeButton("Not now", null)
-                .setPositiveButton("Continue", (dialog, which) -> {
-                    RoleManager role = (RoleManager) getSystemService(ROLE_SERVICE);
-                    if (role == null || !role.isRoleAvailable(RoleManager.ROLE_DIALER)) {
-                        status.setText("Default phone role is not available on this device.");
-                        return;
-                    }
-                    if (role.isRoleHeld(RoleManager.ROLE_DIALER)) {
-                        status.setText("PhnLnk is already the default phone app.");
-                    } else {
-                        startActivityForResult(role.createRequestRoleIntent(RoleManager.ROLE_DIALER), 82);
-                    }
-                }).show()));
-        root.addView(button("Open host call controls", () ->
-                startActivity(new Intent(this, HostCallActivity.class))));
+        root.addView(text("Calling", 22));
+        root.addView(text("Place and control calls using your existing phone number. PhnLnk does not need to replace your normal Phone app.", 13));
+        root.addView(text("Audio on a second device is not supported by this build. Android restricts cellular call audio, and PhnLnk will not ask you to enable debugging or become the default Phone app.", 13));
         root.addView(button("Resume host connection", () -> {
             getSharedPreferences("mode", MODE_PRIVATE).edit().putBoolean("hosting_enabled", true).apply();
             try { startForegroundService(new Intent(this, GatewayService.class)); }
