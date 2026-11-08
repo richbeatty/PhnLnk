@@ -22,6 +22,7 @@ import android.media.audiofx.NoiseSuppressor;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
+import org.json.JSONObject;
 import java.net.Socket;
 import java.net.InetSocketAddress;
 import java.net.URL;
@@ -133,15 +134,19 @@ public final class VoiceSessionService extends Service {
         AcousticEchoCanceler aec=null;
         NoiseSuppressor suppressor=null;
         int oldMode=AudioManager.MODE_NORMAL;
+        String phase="CHECK_COMPANION_PAIRING";
         try {
             if(!RemoteClient.isPaired(this))
                 throw new IllegalStateException("Pair this device with your main phone");
+            phase="CONNECT_HOST_PRIVATE_NETWORK";
             String host=new URL(RemoteClient.address(this)).getHost();
             socket=new Socket();
             socket.connect(new InetSocketAddress(host,VoiceSecureTransport.PORT),5000);
             socket.setTcpNoDelay(true);
             activeSocket=socket;
+            phase="VOICE_AUTH_HANDSHAKE";
             VoiceSecureTransport.Session wire=VoiceSecureTransport.onClient(this,socket);
+            phase="WAIT_HOST_AUDIO_BACKEND";
             byte[] opening=wire.receive();
             String banner=banner(opening);
             if(!banner.startsWith("PHNLNK:READY:"))
@@ -149,6 +154,10 @@ public final class VoiceSessionService extends Service {
                         banner.substring("PHNLNK:ERROR:".length()) :
                         "Main phone did not start the voice bridge");
             String method=banner.substring("PHNLNK:READY:".length());
+            // Initialization may take longer than one voice packet, but
+            // steady-state media should not stall indefinitely.
+            socket.setSoTimeout(15000);
+            phase="OPEN_COMPANION_AUDIO";
             state="Voice connected ("+method+"). Caller audio needs verification.";
 
             audioManager=(AudioManager)getSystemService(Context.AUDIO_SERVICE);
@@ -193,6 +202,7 @@ public final class VoiceSessionService extends Service {
                 throw new IllegalStateException("Android could not initialize companion speaker");
             mic.startRecording();
             speakerTrack.play();
+            phase="VOICE_STREAMING";
             final AudioRecord source=mic;
             final AudioTrack destination=speakerTrack;
             final VoiceSecureTransport.Session session=wire;
@@ -260,8 +270,24 @@ public final class VoiceSessionService extends Service {
             shutdown();
             uplink.join(900);downlink.join(900);
         } catch(Exception error){
-            state="Voice connection failed: "+safe(error);
-            Log.w(TAG,"Companion voice failed",error);
+            String message=safe(error);
+            // If Android / the local helper closed before delivering its
+            // error frame, fetch the host's most recent stage through the
+            // existing authenticated control API. Never expose tokens.
+            if(message.contains("VOICE_MEDIA_CLOSED") ||
+                    message.contains("VOICE_HANDSHAKE_CLOSED") ||
+                    message.contains("EOFException") ||
+                    message.contains("Connection reset")) {
+                try {
+                    JSONObject hostStatus=RemoteClient.status(this);
+                    String hostStage=hostStatus.optString("voiceStage","");
+                    String hostError=hostStatus.optString("voiceLastError","");
+                    if(!hostError.isEmpty() && !hostError.equals("No host media error reported"))
+                        message += " | Main phone ["+hostStage+"]: "+hostError;
+                }catch(Exception ignored) { }
+            }
+            state="Voice failed at "+phase+": "+message;
+            Log.w(TAG,"Companion voice failed at "+phase,error);
         } finally {
             shutdown();
             if(aec!=null)aec.release();

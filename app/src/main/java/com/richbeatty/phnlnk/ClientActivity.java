@@ -352,8 +352,11 @@ public final class ClientActivity extends Activity {
             voiceRoute.setText(VoiceSessionService.speaker()?
                     "Use earpiece":"Use speaker");
         }
-        if(voiceStatus!=null && (connected || !"active".equals(activeState)))
+        if(voiceStatus!=null) {
+            // A failed connection is important even while the ordinary
+            // cellular call remains active. Never hide an EOF or backend error.
             voiceStatus.setText(VoiceSessionService.state());
+        }
     }
 
     private void selectTab(String name) {
@@ -377,6 +380,10 @@ public final class ClientActivity extends Activity {
     private void addKeypad(LinearLayout target) {
         LinearLayout dialCard=PhoneUi.card(this);
         dialCard.addView(PhoneUi.label(this,"Enter a number",18,PhoneUi.INK,true));
+        // Dial/Contacts/Favorites/Recents rebuild this card. A detached card
+        // still owns its child views, so detach the reusable input first.
+        if(number.getParent() instanceof android.view.ViewGroup)
+            ((android.view.ViewGroup)number.getParent()).removeView(number);
         dialCard.addView(number,PhoneUi.margins(this,8,12));
         final String[][] keys={
                 {"1","2","3"},{"4","5","6"},{"7","8","9"},{"*","0","#"}
@@ -412,6 +419,8 @@ public final class ClientActivity extends Activity {
         }),PhoneUi.weight(this));
         editing.addView(secondary("Clear",()->number.setText("")),PhoneUi.weight(this));
         dialCard.addView(editing,PhoneUi.margins(this,6,13));
+        if(dial.getParent() instanceof android.view.ViewGroup)
+            ((android.view.ViewGroup)dial.getParent()).removeView(dial);
         dialCard.addView(dial);
         target.addView(dialCard);
         target.addView(PhoneUi.label(this,

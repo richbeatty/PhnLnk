@@ -1,57 +1,52 @@
-# PhnLnk 0.6 host audio test protocol
+# Cellular audio testing protocol
 
-**Purpose:** Establish host-phone compatibility before designing any live remote audio relay. No third device, Shizuku app or root required for the diagnostic. The only new system feature is Android's own Wireless Debugging, explicitly authorized by the phone owner.
+This document outlines a controlled compatibility test. The user has requested **no further speculative installation or call tests until credible evidence exists**. These steps are a future validation plan, not an instruction to run another test now.
 
-## Prerequisite
+## Distinct signals
 
-- Host Android phone on a trusted Wi-Fi network.
-- Android Developer options, USB debugging and Wireless debugging switched on.
-- One-time local ADB pairing in the PhnLnk notification using Android's own six-digit code.
-- Caller participating in a test call has agreed to both the short capture measurement and optional test beep.
+| Signal | What is actually established | What remains unknown |
+| --- | --- | --- |
+| `READY:V2:shell UID 2000` | Local privileged helper process is running | Recording/injection access |
+| `CAPTURE` with sample count | An AudioRecord returned samples | Their audio source, far-end speech, intelligibility |
+| `SIGNAL_DETECTED` | PCM RMS and peak exceeded the diagnostic threshold | Whether this is the remote person or local room |
+| `INJECT` with positive written samples | The requested track accepted PCM | Whether the far-end person heard the tone |
+| `STREAM_READY` | Capture and injection objects initialized | Whether either route actually carries carrier audio |
+| Encrypted voice connected | HMAC and AES stream initialized | Human audibility, stability, latency |
+| Both people hear each other | Actual voice function during the observed call | Future calls, other networks and screen-off behavior |
 
-## Checks and interpretation
+## Controlled test conditions
 
-| Test | Success looks like | What it does NOT prove |
-|---|---|---|
-| Launch helper | `READY:V1:shell UID 2000` | Access to call audio |
-| Receive caller audio | `CAPTURE:Samples=...,RMS=...,Peak=...,SIGNAL_DETECTED` during caller speech | Voice on far end rather than local room/source mix |
-| Send beep to far end | `INJECT:Output routed to TYPE_TELEPHONY`, **and the consenting far-end caller confirms hearing it** | Simultaneous full-duplex operation or stable device routing |
+- Use the actual main-phone device and OS build to which any result will be attributed.
+- Keep the stock Phone app and existing SIM unchanged.
+- Enlist an informed, consenting other person on a non-emergency test call.
+- Do not record or upload call audio. Prefer short level readings and direct verbal confirmation.
+- Record the Android build, firmware, audio route and whether the test was cellular or Wi-Fi calling.
+- Do not use the six-digit Android debugging code, app bearer token or private ADB secret in a bug report.
 
-Repeat the two audio tests while the screen is off and after one reboot to assess reliability. A sampling error or silence may be caused by firmware, Wi-Fi calling, cellular mode, permissions, audio route or a dormant caller.
+## Downlink candidate sequence
 
-The probe uses a 16 kHz mono short-lived AudioRecord source `VOICE_CALL` under Android's shell UID and an AudioTrack directed toward `TYPE_TELEPHONY`. Other hidden audio backends known from Voice SIP Agent are **not** yet implemented. If this simple route fails, do not infer that every possible backend fails.
+1. Verify the host is in an active call.
+2. Have the distant party speak during the capture measurement.
+3. Test `REDIRECT`, `DOWNLINK` and `CALL` independently if the initial AUTO route is silent.
+4. Record sample count, RMS, peak, error, and exact backend.
+5. Only count success if the **companion actually plays the distant caller's understandable speech**. An arbitrary nonzero amplitude is insufficient.
 
-## Handling test outcomes
+## Uplink candidate sequence
 
-- If either direction cannot be confirmed, do not enable production voice relay; record the error and inspect the audio route from the host only.
-- If both directions succeed independently, the next test is simultaneous full duplex, without saving call audio.
-- Only after that should PhnLnk build an authenticated, encrypted, low-latency Android-to-Android audio stream, with mobile network reachability and call lifecycle recovery.
-- Never use the test tone on an emergency call, busy conference line, or without the caller's awareness.
+1. Inform the distant party that a brief quiet tone will be attempted.
+2. Select `REDIRECT` or `TELEPHONY` injection.
+3. Send the short consented tone and record the API result.
+4. Ask the distant party whether they actually heard it. A successful write is not enough.
+5. Validate that ordinary speech from the companion reaches the far-end party, not only the test tone.
 
-## Security
+## Full-duplex and reliability
 
-- Test daemon binds to loopback 127.0.0.1:47327. It refuses to run unless UID is 2000 (shell).
-- One random 256-bit key per PhnLnk install; only three daemon commands are supported.
-- No call recordings or PCM audio are persisted or uploaded during diagnostics.
-- ADB pairing lasts until revoked and requires the owner's explicit Android Settings approval. Keep only trusted ADB pairings.
-- Do not expose PhnLnk's separate HTTP call-control port 47321 or adb debug ports to the public Internet.
+After each direction independently passes, keep both paths open and perform an actual conversation. Check normal speaking, silence periods, speaker/earpiece, microphone mute, hangup, repeated calls, incoming calls, network changes and the host's screen off.
 
-## Compatibility results
+No full-duplex success has yet been documented on the owner's MP01. Do not label any generated APK as verified solely from a passing build.
 
-**None yet.** Android compilation and GitHub release success cannot establish call capture or uplink injection compatibility on the user's actual phone.
+## Regression tests before any device work
 
-## v0.9.0: end-to-end engineering test
+Run `bash tools/test_voice_protocol.sh`, `python3 tools/maintainer_check.py`, and CI Android builds. These protect the cryptographic transport and startup error handling from obvious software regressions. They cannot prove vendor HAL support.
 
-This version includes real PCM streaming between the host and companion. It is a **compatibility experiment**, not a certified calling product.
-
-1. On the MP01, upgrade without uninstalling. Open Guided audio setup. If the saved V1 shell probe remains, retry so PhnLnk installs the new V2 shell bridge.
-2. Make a real cellular call to a consenting person. Ask them to speak steadily while tapping Check incoming call sound. The app reports REDIRECT, DOWNLINK and/or CALL source RMS and peak. A method reporting nonzero levels is a candidate, not proof it is the far-end caller.
-3. Tap Send quiet audio test tone, then ask whether the far-end person heard it. Try REDIRECT and TELEPHONY uplink modes separately if necessary.
-4. In the companion, with the call active and both devices on the same private Wi-Fi, tap Start voice on this device. Approve its microphone foreground permission. Speak in both directions and confirm that each person hears the other. Use mute and speaker route controls.
-5. If no sound or one-sided audio, use the host's manual backend selectors to isolate the working route. Document device model, OS build, backends, signal levels and whether the remote person actually heard the test tone.
-6. Check disconnect, re-answer, call end, screen-off, reboot and Wi-Fi reconnection. Keep Android's stock Phone app for emergencies.
-7. For away-from-home tests, set up an independently provisioned encrypted private VPN on both phones. No port forwarding. Do not assume the VPN/connection is provided by PhnLnk.
-
-The voice channel on TCP 47322 is authenticated and AES-256-GCM encrypted. The older HTTP call-control connection on TCP 47321 is not encrypted and must never be exposed publicly.
-
-**Never claim the full-duplex cellular feature works until step 4 is successfully tested on the user's physical phone.** A successful compilation or a "voice stream connected" state alone cannot establish downlink, uplink, or carrier compatibility.
+See [Test plan](TEST_PLAN.md), [Troubleshooting](TROUBLESHOOTING.md) and [Known limitations](KNOWN_LIMITATIONS.md).

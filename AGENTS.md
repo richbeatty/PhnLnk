@@ -1,28 +1,62 @@
-# Instructions for coding agents and future PhnLnk maintainers
+# PhnLnk agent instructions
 
-Read `MAINTAINER.md` and `docs/APP_ONLY_AUDIO_PLAN.md` BEFORE changing the app.
+You are maintaining a real Android telephony project, not a disposable prototype.
 
-PhnLnk has a permanent product contract. Do not invent dependencies, promise capabilities that are unavailable, or reintroduce rejected setup requirements.
+**Read before modifying code:**
 
-1. The user keeps the existing AT&T SIM, number and host Android phone. A secondary Android phone or tablet must eventually receive live cellular voice, without moving the number.
-2. The intended end state must require only the two existing Android devices. No computer, Linux SIP gateway, dongle, ESP32, Bluetooth accessory, second mobile service, root, Shizuku, or recurring/manual debugging on every run. A single, optional guided Wireless Debugging + pairing workflow is now approved for audio feasibility tests only.
-3. Do not ask the user to make PhnLnk the default Phone app unless actual two-way cellular audio on the remote Android device has been verified and they expressly approve the switch. The user is conditionally open to the role for a polished, fully functional solution, but the role by itself does not grant audio access. Keep the stock dialer intact for now.
-4. A user-initiated guided pairing with Android Wireless Debugging is now allowed ONLY for optional host-side audio testing, never required for ordinary dialer functionality. Android must present the pairing code and the user must approve it; PhnLnk may remember the identity, retry while debugging is available, and explain when Android disables it. Never claim PhnLnk can toggle or approve debugging silently.
-5. Android restricts raw cellular call audio. A standard third-party APK cannot bypass this using a hidden permission, MediaProjection or an InCallService. If no compliant route is verified, acknowledge the limitation. Never display a fake audio-connected state.
-6. The current build is call control ONLY. Both audible speech directions, remote over internet, are unimplemented. Do not market as complete.
-6. The companion pairing must be persistent until revoked. Never make users repeat a six-digit pairing process after routine app restarts.
-8. PhnLnk should never light the host screen deliberately during a call. Android's independent behavior cannot be overridden by claiming a guarantee.
-9. Do not send raw control HTTP or SIP traffic to the open internet. Any real remote calling must use encrypted, authenticated transport.
-10. Preserve the Android application ID `com.richbeatty.phnlnk`. Keep increasing `versionCode`. NEVER publish a production APK signed with a throwaway/debug key. Permanent signing credentials are private GitHub Actions secrets, not source files.
-11. Maintain the project openly and verify facts. Distinguish compiled, device tested, and production-ready in documentation. Never claim success on the MP01 without device evidence.
-12. Keep features working: basic outgoing dial, incoming state, answer/end controls, contacts, favorites, pairing. Changes must not silently erase data, drop compatibility, or reintroduce OEM branding.
-13. Before every push run `python3 tools/maintainer_check.py` and compile Android. Examine GitHub Actions logs. Check installation/upgrading with a matching signing key before announcing a release.
-14. Document changes and confirmed regressions in `MAINTAINER.md` and `CHANGELOG.md`. Explain blockers without promising future deliveries.
-15. Never commit passwords, signing keystores, ADB private keys, phone numbers, or call recordings.
+1. [Project contract](MAINTAINER.md)
+2. [Documentation index](docs/INDEX.md)
+3. [Advanced coding-agent handoff](docs/CODER_AGENT_HANDOFF_PROMPT.md)
+4. [Phone Link and different-network architecture research](docs/PHONE_LINK_AND_REMOTE_NETWORKS.md)
+5. [Known limitations](docs/KNOWN_LIMITATIONS.md)
+6. [Test plan](docs/TEST_PLAN.md)
+7. [Security review](docs/SECURITY.md)
+8. [Release playbook](docs/RELEASE_PLAYBOOK.md)
 
-A build passing CI does not demonstrate cellular voice audio. Respect Android and carrier constraints. Do not use experimental PhnLnk for emergency calls.
+## Requirements that must survive every iteration
 
-## v0.9.0 voice architecture
+- Original AT&T SIM, number, carrier, MP01 host and second existing Android device only. No new gateway hardware, service-line replacement, root, Shizuku or forced default dialer role.
+- The companion must eventually carry actual far-end speech and uplink speech while on another Wi-Fi network or mobile data, not merely ring or control a call on the host.
+- The user explicitly permits optional, guided, Android-approved one-time Wireless Debugging pairing to investigate host audio. This does not authorize silently turning debugging on or granting privileges.
+- Basic call control must work without debugging. The existing stock Phone app remains default and available for emergency calls.
+- Existing paired-device identity must survive ordinary app updates and restarts.
+- Do not deliberately wake the main phone screen just to receive calls. Android's own behavior may differ.
+- Protect **both** control and media communications before describing the app as safe over public networks. Current HTTP 47321 is plaintext and MUST NOT be port forwarded.
+- The shell helper's readiness and a passing encryption test do not prove carrier audio. The initial VOICE_CALL capture was reported silent on the MP01. The specific MP01's alternative downlink and uplink routes remain unverified.
+- The user has asked not to be repeatedly sent experimental APKs to test. Exhaust automated and independent evidence first.
+- Do not make promises of hardware compatibility or release readiness that are not supported by tests.
 
-The owner requested an aggressive implementation of two-way audio. New code implements an encrypted LAN PCM transport and alternative shell-UID cellular audio backends. Read MAINTAINER.md and docs/AUDIO_TESTING.md. **Do not call this verified**: the MP01 previously returned silent VOICE_CALL audio and has not yet confirmed the alternate routes or uplink. Do not market this as internet-ready: the control server still uses unencrypted HTTP, so only trusted private Wi-Fi or an independently provisioned private VPN is acceptable. Preserve companion RECORD_AUDIO permission, microphone foreground service, cryptographic authentication, token revocation disconnect, directional GCM counters, optional audio method selection, and user-visible limitations. Do not add root, Shizuku, a third hardware gateway or force default Phone role.
+## Architecture invariants
 
+- Host private call-control HTTP: TCP 47321, bearer token, presently no TLS.
+- Host encrypted media: TCP 47322, HMAC pairing proof and directional AES-256-GCM.
+- Shell audio helper: TCP 127.0.0.1:47327 only, separate local secret, must be shell UID 2000.
+- Audio frame: 16 kHz mono, signed 16-bit little-endian, 640 bytes for about 20 ms. No text errors after raw PCM streaming starts.
+- Media handshake must reject wrong tokens and altered or replayed ciphertext. Connection errors must name their stage, never silently leave the user with a bare EOFException when a useful error can be generated.
+- Android self-ADB uses a bounded persistent exec:sh command stream, not the earlier short-lived shell: stream that exhibited a documented libadb close race.
+- Keep host lifecycle, voice socket cleanup, companion microphone foreground service, mute/route controls and call state monitoring.
+- Experimental capture backends: call extraction REDIRECT, VOICE_DOWNLINK, VOICE_CALL. Uplink REDIRECT or telephony output. Initialization is not proof of audibility.
+- Do not assume nearby Bluetooth HFP is available as an Android headset client. Android hides and restricts the headset-client API; it cannot by itself span separate networks.
+- Remote connectivity options must include trusted private VPN first and a long-term secure rendezvous/relay with authenticated control, NAT traversal and jitter-aware realtime media.
+
+## Before every commit
+
+Run and inspect:
+
+```bash
+python3 tools/maintainer_check.py
+bash tools/test_voice_protocol.sh
+bash shellprobe/build.sh
+gradle --no-daemon :app:assembleDebug
+gradle --no-daemon :app:assembleRelease
+```
+
+Android CI validates compilation and protocol mechanics, **not** a real cellular call on the MP01. Keep versionCode increasing, app ID `com.richbeatty.phnlnk` unchanged and permanent release signing identity pinned. Never commit private signing keys, passwords, bearer tokens, ADB credentials, phone numbers, contacts or recordings.
+
+Update `CHANGELOG.md`, `MAINTAINER.md` and affected docs under `docs/` with every material change. Keep an explicit distinction between implemented, built, protocol-tested, real device-tested and not implemented.
+
+A Windows Phone Link comparison or outside open-source project can inspire an architecture but does not constitute proof on this phone. Keep the record of attempted methods and reject ineffective or insecure shortcuts.
+
+The owner values a clean native UI but functional two-way audio and robust remote connectivity take priority over appearance.
+
+Do not present PhnLnk as an emergency-calling solution.

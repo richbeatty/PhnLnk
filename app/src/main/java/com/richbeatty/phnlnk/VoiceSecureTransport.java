@@ -4,6 +4,8 @@ import android.content.Context;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.EOFException;
+import java.net.SocketTimeoutException;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -62,23 +64,39 @@ final class VoiceSecureTransport {
         socket.setSoTimeout(9000);
         DataInputStream input=new DataInputStream(socket.getInputStream());
         DataOutputStream output=new DataOutputStream(socket.getOutputStream());
-        if(input.readInt()!=MAGIC)throw new IOException("Host does not support encrypted voice");
-        byte[] serverNonce=new byte[32];
-        input.readFully(serverNonce);
-        byte[] clientNonce=new byte[16];RANDOM.nextBytes(clientNonce);
-        byte[] key=tokenKey(ctx);
-        byte[] clientProof=proof(key,"client",serverNonce,clientNonce);
-        output.write(clientNonce);output.write(clientProof);output.flush();
-        byte[] expectedServer=proof(key,"server",serverNonce,clientNonce);
-        byte[] serverProof=new byte[32];
-        input.readFully(serverProof);
-        if(!MessageDigest.isEqual(expectedServer,serverProof))
-            throw new SecurityException("Host rejected the saved pairing for voice");
-        socket.setSoTimeout(12000);
-        return new Session(input,output,
-                proof(key,"client-to-host",serverNonce,clientNonce),
-                proof(key,"host-to-client",serverNonce,clientNonce),
-                0x434C4945,0x484F5354);
+        String phase="WAIT_HOST_GREETING";
+        try {
+            if(input.readInt()!=MAGIC)
+                throw new IOException("PROTOCOL_MISMATCH: Host voice protocol differs. Update both devices.");
+            byte[] serverNonce=new byte[32];
+            input.readFully(serverNonce);
+            phase="AUTHORIZE_COMPANION";
+            byte[] clientNonce=new byte[16];RANDOM.nextBytes(clientNonce);
+            byte[] key=tokenKey(ctx);
+            byte[] clientProof=proof(key,"client",serverNonce,clientNonce);
+            output.write(clientNonce);output.write(clientProof);output.flush();
+            phase="WAIT_HOST_AUTHORIZATION";
+            byte[] expectedServer=proof(key,"server",serverNonce,clientNonce);
+            byte[] serverProof=new byte[32];
+            input.readFully(serverProof);
+            if(!MessageDigest.isEqual(expectedServer,serverProof))
+                throw new SecurityException("PAIRING_REJECTED: Host did not verify this companion for voice.");
+            // The host may try several Android audio backends before it
+            // sends the first READY or ERROR frame. Keep this bounded, but
+            // do not time out while the caller's firmware initializes audio.
+            socket.setSoTimeout(25000);
+            return new Session(input,output,
+                    proof(key,"client-to-host",serverNonce,clientNonce),
+                    proof(key,"host-to-client",serverNonce,clientNonce),
+                    0x434C4945,0x484F5354);
+        } catch (EOFException closed) {
+            throw new IOException("VOICE_HANDSHAKE_CLOSED at "+phase+
+                    ": The main phone closed its voice socket before completing authorization. "+
+                    "Confirm both phones have the same PhnLnk release and the host voice service is running.",closed);
+        } catch (SocketTimeoutException timeout) {
+            throw new IOException("VOICE_HANDSHAKE_TIMEOUT at "+phase+
+                    ": Main phone did not answer the voice handshake. Check host service and private-network connectivity.",timeout);
+        }
     }
 
     static Session onHost(Context ctx,Socket socket) throws Exception {
@@ -130,19 +148,27 @@ final class VoiceSecureTransport {
         }
 
         byte[] receive() throws Exception {
-            long seq=input.readLong();
-            int length=input.readUnsignedShort();
-            if(seq!=receiveSequence || length!=FRAME_BYTES+16)
-                throw new SecurityException("Voice packet sequence or size invalid");
-            byte[] encrypted=new byte[length];
-            input.readFully(encrypted);
-            Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(rxKey,"AES"),
-                    new GCMParameterSpec(128,nonce(rxPrefix,seq)));
-            cipher.updateAAD(ByteBuffer.allocate(8).putLong(seq).array());
-            byte[] pcm=cipher.doFinal(encrypted);
-            receiveSequence++;
-            return pcm;
+            try {
+                long seq=input.readLong();
+                int length=input.readUnsignedShort();
+                if(seq!=receiveSequence || length!=FRAME_BYTES+16)
+                    throw new SecurityException("Voice packet sequence or size invalid");
+                byte[] encrypted=new byte[length];
+                input.readFully(encrypted);
+                Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
+                cipher.init(Cipher.DECRYPT_MODE,new SecretKeySpec(rxKey,"AES"),
+                        new GCMParameterSpec(128,nonce(rxPrefix,seq)));
+                cipher.updateAAD(ByteBuffer.allocate(8).putLong(seq).array());
+                byte[] pcm=cipher.doFinal(encrypted);
+                receiveSequence++;
+                return pcm;
+            } catch (EOFException closed) {
+                throw new IOException("VOICE_MEDIA_CLOSED: Remote voice stream ended "+
+                        "before the next complete encrypted audio frame.",closed);
+            } catch (SocketTimeoutException timedOut) {
+                throw new IOException("VOICE_MEDIA_TIMEOUT: No encrypted audio received "+
+                        "for 12 seconds. Check the host audio helper and connection.",timedOut);
+            }
         }
     }
 

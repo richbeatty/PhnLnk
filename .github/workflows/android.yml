@@ -24,6 +24,9 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Verify encrypted voice protocol and EOF handling
+        run: bash tools/test_voice_protocol.sh
+
       - name: Check Android SDK and D8
         run: |
           test -f "$ANDROID_HOME/platforms/android-35/android.jar"
@@ -119,7 +122,7 @@ jobs:
           VERSION="$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n 1)"
           test -n "$VERSION"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
-          echo "title=PhnLnk v$VERSION signed control preview" >> "$GITHUB_OUTPUT"
+          echo "title=PhnLnk v$VERSION signed experimental voice preview" >> "$GITHUB_OUTPUT"
 
       - name: Create transparent release notes
         if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -132,8 +135,13 @@ jobs:
           - Does not require enabling Developer options or Wireless Debugging
             for basic call-control use.
           - Preserves basic local-network calling controls and saved pairings.
-          - Is NOT yet a two-way remote cellular audio solution.
-          - Does not have an internet-secure relay; do not expose the local server.
+          - Includes an experimental authenticated, encrypted two-way voice
+            transport and cellular audio backends.
+          - NOT verified to transmit actual carrier voice on the physical MP01.
+            A passing JVM protocol test or Android build is not an audio test.
+          - The existing call-control HTTP and pairing channel remains
+            UNENCRYPTED. Do not expose the local ports to the public internet.
+          - Does not include a managed VPN or public internet relay.
           - Do not use for emergency calls.
 
           Android updates require the same package ID, higher version code and
@@ -141,7 +149,8 @@ jobs:
           certificates, so migrating from them requires one final uninstall.
           Future versions signed with this SAME permanent key can update in place.
 
-          See MAINTAINER.md for product requirements and current limitations.
+          See docs/INDEX.md, docs/SECURITY.md and docs/KNOWN_LIMITATIONS.md
+          for current behavior, constraints, tests and device acceptance gates.
           EOF
 
       - name: Publish only the permanently signed APK

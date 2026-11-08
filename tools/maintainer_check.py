@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 15,
-        "The versionCode must be at least 15 and increase on subsequent releases")
-require("versionName '0.9.1'" in gradle,
+require(match is not None and int(match.group(1)) >= 16,
+        "The versionCode must be at least 16 and increase on subsequent releases")
+require("versionName '0.9.2'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -174,6 +174,59 @@ require("app-release.apk" in workflow,
 
 require("does not" in readme.lower() and "audio" in readme.lower(),
         "README must clearly disclose unavailable remote cellular audio")
+
+
+# EOF regression checks and complete documentation contract.
+helper=content("shellprobe/src/com/richbeatty/phnlnk/shell/AudioProbe.java")
+host_voice=content("app/src/main/java/com/richbeatty/phnlnk/VoiceRelayServer.java")
+voice_transport=content("app/src/main/java/com/richbeatty/phnlnk/VoiceSecureTransport.java")
+voice_companion=content("app/src/main/java/com/richbeatty/phnlnk/VoiceSessionService.java")
+require("ERROR:AUDIO_INIT:" in helper and "replyStarted" in helper,
+        "Shell helper needs pre-READY audio error and binary PCM guard")
+require("socket.setSoTimeout(30000)" in helper,
+        "Shell must allow bounded time for Android microphone startup")
+require("HELPER_CLOSED:" in host_voice and "HELPER_TIMEOUT:" in host_voice,
+        "Host must name local helper EOF and timeouts")
+require("voiceStage" in core and "voiceLastError" in core,
+        "Authorized host status must expose sanitized voice failures")
+require("VOICE_HANDSHAKE_CLOSED" in voice_transport and
+        "VOICE_MEDIA_CLOSED" in voice_transport and
+        "VOICE_MEDIA_TIMEOUT" in voice_transport,
+        "Do not regress to bare EOFExceptions")
+require("Voice failed at " in voice_companion and
+        "RemoteClient.status(this)" in voice_companion,
+        "Companion must name failure phase and inspect host diagnostic")
+require("test_voice_protocol.sh" in workflow and
+        "Verify encrypted voice protocol and EOF handling" in workflow,
+        "CI must run protocol regression tests")
+require("getParent() instanceof android.view.ViewGroup" in client,
+        "Reused dialer views must detach before being reparented")
+for required_doc in [
+    "docs/INDEX.md",
+    "docs/ARCHITECTURE.md",
+    "docs/VOICE_PROTOCOL.md",
+    "docs/AUDIO_BACKENDS.md",
+    "docs/API_REFERENCE.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/SECURITY.md",
+    "docs/TEST_PLAN.md",
+    "docs/SETUP_GUIDE.md",
+    "docs/RELEASE_PLAYBOOK.md",
+    "docs/MAINTAINER_WORKFLOW.md",
+    "docs/KNOWN_LIMITATIONS.md",
+    "docs/DECISIONS.md",
+    "docs/EOF_INCIDENT_2026-11-08.md",
+    "docs/PHONE_LINK_AND_REMOTE_NETWORKS.md",
+    "docs/CODER_AGENT_HANDOFF_PROMPT.md",
+]:
+    require(len(content(required_doc)) >= 1500,
+            f"Missing or incomplete required project documentation: {required_doc}")
+require("Bluetooth" in content("docs/PHONE_LINK_AND_REMOTE_NETWORKS.md") and
+        "different" in content("docs/PHONE_LINK_AND_REMOTE_NETWORKS.md").lower(),
+        "Separate-network design must not rely on Bluetooth proximity")
+require("MP01" in content("docs/CODER_AGENT_HANDOFF_PROMPT.md") and
+        "two-way" in content("docs/CODER_AGENT_HANDOFF_PROMPT.md"),
+        "The advanced agent handoff must specify device and real two-way voice goal")
 
 if failures:
     print("PhnLnk maintainer checks FAILED:")

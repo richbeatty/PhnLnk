@@ -28,6 +28,9 @@ final class CallController {
                 .hasSystemFeature(PackageManager.FEATURE_TELEPHONY));
         status.put("audioRelayed", false);
         status.put("voiceTransportActive", VoiceRelayServer.isBusy());
+        status.put("voiceStage", VoiceRelayServer.lastStage());
+        status.put("voiceLastError", VoiceRelayServer.lastError());
+        status.put("voiceLastErrorAt", VoiceRelayServer.lastErrorAt());
         status.put("voiceHostHelperReady", AudioAccessState.READY.equals(
                 AudioAccessState.state(context)));
         status.put("voiceTransportSupported", true); // Firmware audio still unverified.

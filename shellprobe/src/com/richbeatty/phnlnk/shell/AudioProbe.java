@@ -101,8 +101,30 @@ public final class AudioProbe {
                         output.writeUTF("ERROR:Another voice session is active");output.flush();break;
                     }
                     streamingSocket = client;
-                    try { stream(client,input,output,command); }
-                    finally { streamingSocket=null;occupied.set(false); }
+                    final AtomicBoolean replyStarted=new AtomicBoolean(false);
+                    try {
+                        // Always answer the host once for setup failures.
+                        // Previously shellContext or a vendor audio API could
+                        // throw before STREAM_READY, leaving the app with only
+                        // an unhelpful EOFException from readUTF().
+                        try {
+                            stream(client,input,output,command,replyStarted);
+                        } catch (Throwable startup) {
+                            System.err.println("stream failure: " + brief(startup));
+                            try {
+                                // Never inject a UTF error into an already
+                                // running raw PCM stream. That would corrupt
+                                // audio framing after STREAM_READY.
+                                if (!replyStarted.get() && !client.isClosed()) {
+                                    output.writeUTF("ERROR:AUDIO_INIT:" + brief(startup));
+                                    output.flush();
+                                }
+                            } catch (Exception ignored) { }
+                        }
+                    } finally {
+                        streamingSocket=null;
+                        occupied.set(false);
+                    }
                     break;
                 case "STOP":
                     running=false;
@@ -113,8 +135,9 @@ public final class AudioProbe {
                 default:
                     output.writeUTF("ERROR:Unknown request");output.flush();
             }
-        } catch (Exception error) {
-            System.err.println("audio command: " + brief(error));
+        } catch (Throwable error) {
+            // Do not leak tokens or captured speech into logs.
+            System.err.println("audio command failed: " + brief(error));
         }
     }
 
@@ -299,7 +322,8 @@ public final class AudioProbe {
     }
 
     private static void stream(Socket socket,DataInputStream input,
-                               DataOutputStream output,String command) throws Exception {
+                               DataOutputStream output,String command,
+                               AtomicBoolean replyStarted) throws Exception {
         String captureChoice="AUTO",uplinkChoice="AUTO";
         String[] options=command.split(":",-1);
         if(options.length==3){
@@ -346,9 +370,13 @@ public final class AudioProbe {
             if(recordPlan[i].equals(recordMethod))sourceIndex[0]=i;
         }
         try {
+            replyStarted.set(true);
             output.writeUTF("STREAM_READY:DOWN="+recordMethod+":UP="+uplinkMethod);
             output.flush();
-            socket.setSoTimeout(9000);
+            // The companion can still be initializing its microphone after
+            // our STREAM_READY reply. A short 9s socket timeout caused the
+            // shell receiver to close the whole media connection prematurely.
+            socket.setSoTimeout(30000);
             Thread sender=new Thread(() -> {
                 short[] samples=new short[FRAME_BYTES/2];
                 byte[] pcm=new byte[FRAME_BYTES];

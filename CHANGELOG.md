@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.9.2, EOF diagnostics, regression tests and complete developer documentation
+
+- Fixed source-level voice helper early close during Android audio initialization by sending an explicit pre-READY `ERROR:AUDIO_INIT` when possible.
+- Protected established raw PCM streams from accidental UTF error messages after STREAM_READY.
+- Increased bounded startup/read grace periods where the companion was still initializing its microphone.
+- Named handshake, authorization, helper startup and encrypted media EOF or timeout stages.
+- Exposed sanitized host voice stage/error in the authenticated status payload for companion diagnostics.
+- Kept companion voice failure messages visible during active calls and fixed reused dialer view parenting.
+- Added real TCP loopback HMAC/AES voice protocol regression tests, including correct duplex, early close, invalid pairing, tampering and sequence replay.
+- Added the protocol suite to GitHub Android CI, ahead of release compilation.
+- Published a complete GitHub documentation hub: architecture, protocol, audio backends, API, setup, security, troubleshooting, testing, release, decisions and known limitations.
+- Added a research-led analysis of Windows Phone Link's nearby Bluetooth hands-free audio and a separate-network strategy including VPN and secure future internet relay.
+- Added a detailed copyable prompt for a coding agent to pursue actual remote two-way carrier calling without promising unverified MP01 compatibility.
+- Still not verified to transmit genuine cellular speech on the physical MP01; do not treat this as a completed user-ready voice release.
+
+
 ## v0.9.1, clear voice setup and limitations
 
 - Clarified the call screen's voice controls and connection states so they match the implemented experimental voice stream.

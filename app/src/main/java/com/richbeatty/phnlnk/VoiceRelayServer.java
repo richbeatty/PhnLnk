@@ -5,6 +5,8 @@ import android.telephony.TelephonyManager;
 import android.util.Log;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.net.SocketTimeoutException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -24,6 +26,9 @@ final class VoiceRelayServer {
     private static final String TAG="PhnLnkVoice";
     private static final AtomicBoolean BUSY=new AtomicBoolean(false);
     private static volatile VoiceRelayServer current;
+    private static volatile String lastStage="NOT_STARTED";
+    private static volatile String lastError="No voice attempt yet";
+    private static volatile long lastErrorAt;
     private final Context context;
     private final ExecutorService clients=Executors.newCachedThreadPool();
     private volatile boolean closed;
@@ -37,6 +42,18 @@ final class VoiceRelayServer {
     VoiceRelayServer(Context c) {context=c.getApplicationContext();}
 
     static boolean isBusy() {return BUSY.get();}
+
+    static String lastStage() {return lastStage;}
+    static String lastError() {return lastError;}
+    static long lastErrorAt() {return lastErrorAt;}
+
+    private static void stage(String value) {lastStage=value;}
+
+    private static void fail(String value) {
+        lastError=value == null ? "Unknown voice failure" :
+                value.length()>240?value.substring(0,240):value;
+        lastErrorAt=System.currentTimeMillis();
+    }
 
     static void disconnectActive() {
         VoiceRelayServer server=current;
@@ -56,11 +73,13 @@ final class VoiceRelayServer {
         listener.bind(new InetSocketAddress(VoiceSecureTransport.PORT));
         closed=false;
         current=this;
+        stage("LISTENING");
         loop=new Thread(() -> {
             while(!closed) {
                 try {
                     Socket socket=listener.accept();
                     if(!BUSY.compareAndSet(false,true)){
+                        fail("HOST_BUSY: Another companion voice connection is already active.");
                         socket.close();continue;
                     }
                     clients.execute(() -> {
@@ -83,6 +102,7 @@ final class VoiceRelayServer {
         clients.shutdownNow();
         if(loop!=null)loop.interrupt();
         streaming=false;
+        stage("STOPPED");
         if(current==this)current=null;
     }
 
@@ -111,26 +131,36 @@ final class VoiceRelayServer {
         activeClient=remote;
         Socket helper=null;
         VoiceSecureTransport.Session session=null;
+        boolean readySent=false;
+        String phase="AUTH_HANDSHAKE";
         try (Socket socket=remote) {
             socket.setTcpNoDelay(true);
+            stage(phase);
             session=VoiceSecureTransport.onHost(context,socket);
+            phase="CHECK_ACTIVE_CALL";
+            stage(phase);
             if(!isCallActive()) {
-                session.send(message("ERROR:No active cellular call on the main phone"));
+                fail("NO_CALL: No active cellular call on the main phone.");
+                session.send(message("ERROR:NO_CALL:No active cellular call on the main phone"));
                 return;
             }
             if(!AudioAccessState.autoReconnect(context)) {
-                session.send(message("ERROR:Audio access is switched off on the main phone"));
+                fail("ACCESS_OFF: The main phone has automatic audio access turned off.");
+                session.send(message("ERROR:ACCESS_OFF:Audio access is switched off on the main phone"));
                 return;
             }
             String key=context.getSharedPreferences("phnlnk_audio_bootstrap",Context.MODE_PRIVATE)
                     .getString("session_secret","");
             if(!key.matches("[0-9a-f]{64}")) {
-                session.send(message("ERROR:Audio helper needs guided setup on main phone"));
+                fail("HELPER_UNPAIRED: Local audio helper authorization is missing.");
+                session.send(message("ERROR:HELPER_UNPAIRED:Audio helper needs guided setup on main phone"));
                 return;
             }
+            phase="CONNECT_SHELL_HELPER";
+            stage(phase);
             helper=new Socket();
             helper.connect(new InetSocketAddress(InetAddress.getByName("127.0.0.1"),47327),1500);
-            helper.setSoTimeout(6500);
+            helper.setSoTimeout(20000);
             helper.setTcpNoDelay(true);
             activeShell=helper;
             DataInputStream shellIn=new DataInputStream(helper.getInputStream());
@@ -139,17 +169,32 @@ final class VoiceRelayServer {
             shellOut.writeUTF("STREAM:"+AudioAccessState.captureMethod(context)
                     +":"+AudioAccessState.uplinkMethod(context));
             shellOut.flush();
-            String opened=shellIn.readUTF();
+            phase="AWAIT_AUDIO_BACKEND";
+            stage(phase);
+            String opened;
+            try {
+                opened=shellIn.readUTF();
+            } catch (EOFException closedEarly) {
+                throw new IOException("HELPER_CLOSED: Local shell audio helper closed before reporting a capture or injection backend. Check Android audio attribution and firmware support.",closedEarly);
+            } catch (SocketTimeoutException timedOut) {
+                throw new IOException("HELPER_TIMEOUT: Local shell audio helper did not finish opening audio backends within 20 seconds.",timedOut);
+            }
             if(!opened.startsWith("STREAM_READY:")) {
-                session.send(message("ERROR:" + (opened.startsWith("ERROR:")?
-                        opened.substring(6):"Host call audio backend refused")));
+                String reason=opened.startsWith("ERROR:") ? opened.substring(6) :
+                        "BACKEND_REJECTED:Host call audio backend refused";
+                fail(reason);
+                session.send(message("ERROR:"+reason));
                 return;
             }
             session.send(message("READY:"+opened.substring("STREAM_READY:".length())));
+            readySent=true;
+            phase="STREAMING";
+            stage(phase);
             // The secure channel and shell capture/injection are now set up,
             // but this alone does not prove the remote caller hears audio.
             streaming=true;
             failure="";
+            lastError="No host media error reported";
             helper.setSoTimeout(14000);
             final Socket closeRemote=socket;
             final Socket closeHelper=helper;
@@ -163,7 +208,7 @@ final class VoiceRelayServer {
                         fromShell.readFully(frame);
                         wire.send(frame);
                     }
-                }catch(Exception e){failure="Downlink stopped: "+safe(e);}
+                }catch(Exception e){failure="DOWNLINK_STOPPED: "+safe(e);fail(failure);}
                 finally{streaming=false;closeSilently(closeRemote);closeSilently(closeHelper);}
             },"PhnLnk-downlink");
             Thread up=new Thread(() -> {
@@ -173,7 +218,7 @@ final class VoiceRelayServer {
                         toShell.write(frame);
                         toShell.flush();
                     }
-                }catch(Exception e){failure="Uplink stopped: "+safe(e);}
+                }catch(Exception e){failure="UPLINK_STOPPED: "+safe(e);fail(failure);}
                 finally{streaming=false;closeSilently(closeRemote);closeSilently(closeHelper);}
             },"PhnLnk-uplink");
             down.setDaemon(true);up.setDaemon(true);
@@ -186,9 +231,12 @@ final class VoiceRelayServer {
             closeSilently(socket);closeSilently(helper);
             down.join(800);up.join(800);
         }catch(Exception error){
-            failure=safe(error);
-            Log.w(TAG,"Voice relay could not start",error);
-            if(session!=null && !streaming) {
+            failure=phase+": "+safe(error);
+            fail(failure);
+            Log.w(TAG,"Voice relay failed at "+phase,error);
+            // A startup failure gets one authenticated error frame. Never
+            // append a second control frame once streaming has started.
+            if(session!=null && !readySent) {
                 try{session.send(message("ERROR:"+failure));}catch(Exception ignored){}
             }
         }finally{
@@ -196,6 +244,7 @@ final class VoiceRelayServer {
             closeSilently(helper);
             activeShell=null;
             activeClient=null;
+            stage("LISTENING");
         }
     }
 

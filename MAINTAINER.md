@@ -1,6 +1,6 @@
 # PhnLnk maintainer contract
 
-Last reviewed: 2026-11-07. This is the source of truth for human and coding-agent maintainers.
+Last reviewed: 2026-11-08. This is the source of truth for human and coding-agent maintainers.
 
 ## Product goal
 
@@ -72,6 +72,19 @@ The user requested implementation of the full audio path rather than further iso
 **CRITICAL:** The host side had previously reported SILENT_OR_MUTED for VOICE_CALL source. The new routes have NOT been tested on the specific MP01. A successful build, shell helper state, AES voice socket, or successful capture setup cannot prove far-end audible sound or audio injection. Do not advertise full functionality unless both directions are tested on real incoming/outgoing calls. Capture fallback may switch after several seconds of digital silence; caller quietness can also trigger fallback. The companion voice interface is a feature preview, not a verified calling solution.
 
 The user may later permit the default-dialer role only if a real, useful benefit is demonstrated, not merely for receiving normal call control. Keep the old phone app until they explicitly agree.
+
+
+## November 8, 2026: EOF repair, comprehensive documentation and remote network goal
+
+The user reported `EOFException` after experimental v0.9.1 voice streaming. Without a stack trace, the exact event cannot be attributed to one cause. The source did contain real early-close paths: the shell helper could throw during Android audio initialization without writing a startup UTF response, and a nine-second receive timeout could expire before the companion finished opening its microphone. v0.9.2 adds stage-specific errors, bounded longer startup waits, an error response before STREAM_READY, a strict post-READY guard against mixing UTF with raw PCM, and host/companion diagnostic state. Those changes require automated regression tests and still do not establish MP01 caller audibility.
+
+The user has explicitly requested **extensive GitHub documentation and a handoff prompt for a more capable coding agent**. Documentation is now indexed at [docs/INDEX.md](docs/INDEX.md). The full prompt lives at [docs/CODER_AGENT_HANDOFF_PROMPT.md](docs/CODER_AGENT_HANDOFF_PROMPT.md).
+
+**Separate networks are a core product goal, not a future optional feature.** The host may remain on home Wi-Fi while the companion uses mobile data or another Wi-Fi network. A basic two-device VPN overlay is an incremental engineering route; seamless one-app connectivity likely requires a secure rendezvous/signaling plane and audited encrypted internet transport. The current control HTTP port is still plaintext, so direct public port forwarding is prohibited. See [docs/PHONE_LINK_AND_REMOTE_NETWORKS.md](docs/PHONE_LINK_AND_REMOTE_NETWORKS.md).
+
+**Phone Link research:** Microsoft officially requires nearby Bluetooth for its PC calling feature. An Android HFP client is a hidden/system API often gated by BLUETOOTH_PRIVILEGED, and Bluetooth cannot carry audio when devices are miles apart on separate networks. Its UX is worth studying, not an assumed ready-made audio solution for this project.
+
+The owner specifically stated they do not want another speculative installation or test. Do not offer further installable APKs as verified until there is credible evidence that the MP01 can truly carry both directions of a cellular call.
 
 ## Release signing incident and remediation
 
