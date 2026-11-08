@@ -2,24 +2,19 @@
 
 **One Android app, two roles.** The main phone keeps its cellular SIM and number. A secondary Android device can dial, browse local contacts, send keypad tones, receive incoming-call alerts, and control calls.
 
-[Download PhnLnk](https://github.com/richbeatty/PhnLnk/releases/latest)
+[Download call-control preview v0.4](https://github.com/richbeatty/PhnLnk## App-only audio research: no third device
 
-## The cellular voice breakthrough, optional beta
+**Product requirement:** The finished app must use only the existing SIM phone and the existing second Android device. No Linux bridge, extra computer, headset gateway, dongle, root, or separately installed Shizuku.
 
-An ordinary Android app cannot capture and inject native carrier call audio through public APIs. **PhnLnk 0.5 adds an experimental real-voice route through a standard Bluetooth hands-free gateway**, the same route used by car kits. It does not require rooting your Android phone or installing Shizuku.
+The credible, still unproven route is an embedded loopback ADB client, inspired by [JemRec](https://github.com/jemcik/JemRec), which launches a shell-level helper from the phone itself after one-time Wireless Debugging pairing. [Voice SIP Agent](https://github.com/sparkcyf/android-voice-sip-agent) proves a two-way audio bridge at the same shell privilege level but currently uses Shizuku to start it. Integrating these techniques into one PhnLnk app would avoid a separate Shizuku installation, though a one-time Developer options and Wireless Debugging setup is still required.
 
-```
-Main Android phone with SIM and original cellular number
-  -> Bluetooth HFP (standard call-audio device)
-  -> nearby Linux computer with Bluetooth and Asterisk chan_mobile
-  -> SIP over your private network
-  -> PhnLnk embedded Liblinphone on secondary Android device
-  -> its own microphone and speaker
-```
+**Both recording the live cellular downlink and injecting audio into the cellular uplink must be confirmed on the actual host phone** before treating the approach as viable. MediaTek/Android support varies by device and firmware. This has not been verified on the user's phone.
 
-**A Linux Bluetooth/SIP gateway is required and must be set up separately.** The extra computer must stay near the main phone. The solution has not been tested end-to-end on the user's hardware and is not yet a polished, app-only Beeper alternative. The voice engine requires SIP registration before making calls. If it is off, PhnLnk falls back to its current control-only functions, which do not carry audio.
+[Read the detailed app-only research and testing plan](docs/APP_ONLY_AUDIO_PLAN.md).
 
-See [Bluetooth voice setup](docs/VOICE_SETUP.md) and [extensive research](docs/VOICE_RESEARCH.md).
+## Historical experimental Bluetooth/SIP branch (not the requested solution)
+
+The v0.5.0 APK contains a separate Linux Bluetooth-to-SIP experiment. It requires another computer and is **not a solution under the no-additional-hardware requirement**. The v0.5 voice path remains untested and is not recommended for this use case.
 
 ## Basic pairing
 
@@ -34,7 +29,7 @@ PhnLnk works on Wi-Fi-only Android tablets too. All UI is device-neutral.
 - Dial, answer, hang up through the SIM phone over a trusted private LAN.
 - In-call DTMF after selecting PhnLnk as the host phone's default dialer.
 - Incoming call notifications, pairing recovery and user-controlled host background service.
-- Optional **Bluetooth voice calling** with a paired Linux-to-SIP gateway. When registered, the companion's dial pad and contacts use SIP, and real two-way voice uses its microphone/speaker through Liblinphone.
+- Experimental Bluetooth/SIP components exist in v0.5 but require additional hardware. They are out of scope for the app-only target.
 - Voice gateway SIP credentials encrypted with a key kept in Android Keystore.
 - No Shizuku and no root needed on the Android devices.
 
