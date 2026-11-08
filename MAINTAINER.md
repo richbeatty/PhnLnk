@@ -19,6 +19,10 @@ A Beeper-simple Android companion that makes and answers **real cellular calls**
 | Updates | Same package ID and permanently pinned release signing certificate; new releases install on top without uninstalling and losing pairing. |
 | Privacy | Private, authenticated, encrypted communications. No public unencrypted local HTTP listener as an internet-facing shortcut. |
 
+## Conditional default-dialer consideration (November 7, 2026)
+
+The user would consider making PhnLnk the default Phone app **only if** that enables a genuinely usable dialer plus two-way cellular audio on a second Android device, together with a more polished product experience. This is NOT blanket permission to request the role. Official Android documentation does not grant cellular call capture or injection to an ordinary third-party default dialer. Therefore, PhnLnk should not ask for this role just to make the interface prettier. Keep the ordinary Phone app until a verified feature truly warrants that choice.
+
 ## Current reality, not roadmap promises
 
 - **Working in existing prototype:** Local network outbound call request, local paired Android companion, contact search, favorites, incoming call status, answer/end call controls. These were compiled, and outgoing dialing was reported working by the user. Other features have not been comprehensively hardware tested.
@@ -70,6 +74,12 @@ See [CALL_RESEARCH_2026.md](docs/CALL_RESEARCH_2026.md) for the November 7, 2026
 The closest technically supportable voice route without more hardware or privileged Android setup is AT&T inbound call forwarding to a hosted VoIP endpoint plus verified AT&T number as outbound caller ID. **This requires an additional paid voice provider and an AT&T forwarding configuration, so it is only an opt-in alternative, not a silent change to the user's nonnegotiable requirements.** No account was set up, no call forwarding was enabled, and the prototype has not implemented this path. It is not the host SIM's outgoing audio; the cloud provider handles that leg.
 
 Beeper officially does not support voice calling. Its Android Content Provider is a legitimate optional messaging integration, with user-granted permissions, and does not unlock cellular audio.
+
+## Interface refresh
+
+v0.7 adds a dependency-free native shared visual system (`PhoneUi.java`) and redesigned host and companion screens. The keypad, contacts, favorites, recent dial requests, live call state, pairing, and connection settings must be maintained. The first-run role selection is device-neutral.
+
+No native screen polish should be marketed as solving the cellular audio restriction. Report only source compilation until an actual host and companion are tested.
 
 ## Maintenance rule
 

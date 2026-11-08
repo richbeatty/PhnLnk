@@ -6,7 +6,7 @@ PhnLnk has a permanent product contract. Do not invent dependencies, promise cap
 
 1. The user keeps the existing AT&T SIM, number and host Android phone. A secondary Android phone or tablet must eventually receive live cellular voice, without moving the number.
 2. The intended end state must require only the two existing Android devices. No computer, Linux SIP gateway, dongle, ESP32, Bluetooth accessory, second mobile service, root, Shizuku, or manual Wireless Debugging.
-3. Do not ask the user to make PhnLnk the default Phone app. Keep the existing stock dialer intact.
+3. Do not ask the user to make PhnLnk the default Phone app unless actual two-way cellular audio on the remote Android device has been verified and they expressly approve the switch. The user is conditionally open to the role for a polished, fully functional solution, but the role by itself does not grant audio access. Keep the stock dialer intact for now.
 4. Android restricts raw cellular call audio. A standard third-party APK cannot bypass this using a hidden permission, MediaProjection or an InCallService. If no compliant route is verified, acknowledge the limitation. Never display a fake audio-connected state.
 5. The current build is call control ONLY. Both audible speech directions, remote over internet, are unimplemented. Do not market as complete.
 6. The companion pairing must be persistent until revoked. Never make users repeat a six-digit pairing process after routine app restarts.

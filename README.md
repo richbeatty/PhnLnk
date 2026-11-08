@@ -4,6 +4,12 @@ PhnLnk is an Android host and companion project for using your existing phone nu
 
 **Read the permanent [maintainer contract](MAINTAINER.md) and [agent instructions](AGENTS.md) before changing code.** The user's restrictions are now enforced partly by CI to prevent backtracking.
 
+## Interface update
+
+The v0.7 native interface separates main-phone setup from companion calling. The companion now has a prominent keypad, a distinct live call-status panel, contacts, favorites, recent requests, and collapsible connection settings. The main phone has a high-contrast pairing and connection dashboard. These are usability improvements; **two-way voice audio on the companion is still unavailable**.
+
+The user is open to considering the default Phone app role only if it truly enables a complete calling experience. Android's public default-dialer APIs do not provide cellular call audio capture or injection, so PhnLnk does not ask for that role just to access a prettier call screen.
+
 ## What works
 
 - The host phone can request outgoing cellular calls through Android Telecom without becoming the default Phone app.

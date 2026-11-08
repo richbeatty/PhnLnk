@@ -46,7 +46,9 @@ public final class ClientActivity extends Activity {
         }
     };
     private LinearLayout root, tabContent;
-    private TextView connection, note;
+    private TextView connection, note, callCaption;
+    private LinearLayout callControls;
+    private final ArrayList<Button> navigation = new ArrayList<>();
     private EditText number, search;
     private Button dial, answer, end, alerts;
     private String tab = "Dial";
@@ -96,17 +98,30 @@ public final class ClientActivity extends Activity {
     }
 
     private void buildShell() {
+        PhoneUi.screen(this);
         ScrollView scrolling = new ScrollView(this);
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(17);
-        root.setPadding(pad,pad,pad,pad);
+        scrolling.setFillViewport(true);
+        scrolling.setBackgroundColor(PhoneUi.BG);
+        root = PhoneUi.column(this);
+        int pad = dp(19);
+        root.setPadding(pad, dp(22), pad, dp(25));
         scrolling.addView(root);
         setContentView(scrolling);
-        TextView brand = text("PhnLnk", 30);
-        brand.setTypeface(null, Typeface.BOLD);
-        root.addView(brand);
-        root.addView(text("Your phone. Connected.", 14));
+
+        LinearLayout header = PhoneUi.row(this);
+        TextView mark = PhoneUi.label(this, "P", 24, PhoneUi.CARD, true);
+        mark.setGravity(android.view.Gravity.CENTER);
+        mark.setBackground(PhoneUi.background(this, PhoneUi.FOREST, 14, android.graphics.Color.TRANSPARENT));
+        header.addView(mark,new LinearLayout.LayoutParams(dp(50),dp(50)));
+        LinearLayout heading = PhoneUi.column(this);
+        heading.addView(PhoneUi.label(this,"PhnLnk",27,PhoneUi.INK,true));
+        heading.addView(PhoneUi.label(this,"COMPANION",11,PhoneUi.MUTED,true));
+        LinearLayout.LayoutParams headingMargin=new LinearLayout.LayoutParams(0,-2,1f);
+        headingMargin.setMargins(dp(13),0,0,0);
+        header.addView(heading,headingMargin);
+        root.addView(header);
+        root.addView(PhoneUi.label(this,"Your phone, wherever you're sitting.",14,PhoneUi.MUTED,false),
+                PhoneUi.margins(this,8,18));
     }
 
     private void clearScreen() {
@@ -118,19 +133,27 @@ public final class ClientActivity extends Activity {
 
     private void showPair(String ip, String code) {
         clearScreen();
-        root.addView(text("Connect to your main phone", 20));
-        root.addView(text("Open PhnLnk on the phone with your SIM, tap Pair a device, then enter the address and six-digit code.", 14));
-        EditText address = input("Phone Wi-Fi address (192.168.1.10)", InputType.TYPE_CLASS_TEXT);
+        LinearLayout card = PhoneUi.card(this);
+        card.addView(PhoneUi.label(this,"Connect a phone",25,PhoneUi.INK,true));
+        card.addView(PhoneUi.label(this,"Scan the code on your main phone, or enter its Wi-Fi address and six-digit pairing code.",14,PhoneUi.MUTED,false),
+                PhoneUi.margins(this,9,16));
+        card.addView(PhoneUi.label(this,"PHONE ADDRESS",12,PhoneUi.MUTED,true));
+        EditText address = input("192.168.1.10", InputType.TYPE_CLASS_TEXT);
         address.setText(ip);
-        root.addView(address);
-        EditText digits = input("Six-digit pairing code", InputType.TYPE_CLASS_NUMBER);
+        card.addView(address,PhoneUi.margins(this,6,16));
+        card.addView(PhoneUi.label(this,"ONE-TIME CODE",12,PhoneUi.MUTED,true));
+        EditText digits = input("000000", InputType.TYPE_CLASS_NUMBER);
         digits.setText(code);
-        root.addView(digits);
-        note = text("", 14);
-        root.addView(button("Connect", () -> connect(address.getText().toString(), digits.getText().toString())));
-        root.addView(note);
-        root.addView(text("Both phones must be on the same trusted Wi-Fi network. Scanning the QR on the main phone fills these details automatically.", 13));
-        root.addView(button("Make this the main phone instead", () -> changeRole()));
+        digits.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(6)});
+        card.addView(digits,PhoneUi.margins(this,6,17));
+        card.addView(button("Connect phone", () ->
+                connect(address.getText().toString(),digits.getText().toString())));
+        note = PhoneUi.label(this,"",13,PhoneUi.RED,false);
+        card.addView(note,PhoneUi.margins(this,12,0));
+        root.addView(card);
+        root.addView(PhoneUi.label(this,"Pair once. Your connection is remembered until you disconnect it. Both devices must be on the same trusted private Wi-Fi.",13,PhoneUi.MUTED,false),
+                PhoneUi.margins(this,15,8));
+        root.addView(secondary("Use this device as the main phone",this::changeRole));
     }
 
     private void connect(String ip, String code) {
@@ -158,129 +181,168 @@ public final class ClientActivity extends Activity {
 
     private void showDialer() {
         clearScreen();
-        connection = text("Checking phone...", 16);
-        root.addView(connection);
-        LinearLayout actions = row();
-        answer = button("Answer", () -> command("answer", ""));
-        end = button("End call", () -> command("end", ""));
-        actions.addView(answer, weighted());
-        actions.addView(end, weighted());
-        root.addView(actions);
-        root.addView(text("Call control only. You still need your main phone to hear and speak.", 12));
+        navigation.clear();
 
-        number = input("Enter a number", InputType.TYPE_CLASS_PHONE);
-        number.setTextSize(24);
-        root.addView(number);
-        dial = button("Call using my number", () -> command("dial", number.getText().toString()));
-        root.addView(dial);
+        LinearLayout statusCard = PhoneUi.card(this);
+        statusCard.addView(PhoneUi.label(this,"PHONE CONNECTION",11,PhoneUi.MUTED,true));
+        connection = PhoneUi.label(this,"Connecting...",17,PhoneUi.INK,true);
+        statusCard.addView(connection,PhoneUi.margins(this,7,0));
+        root.addView(statusCard,PhoneUi.margins(this,0,12));
 
-        LinearLayout tabs = row();
-        for (String item : new String[]{"Dial", "Contacts", "Favorites", "Recents"}) {
-            Button control = button(item, () -> selectTab(item));
-            control.setTextSize(12);
-            control.setPadding(dp(4),dp(7),dp(4),dp(7));
-            tabs.addView(control, weighted());
+        LinearLayout callCard = PhoneUi.card(this);
+        callCard.setBackground(PhoneUi.background(this,PhoneUi.PALE,22,android.graphics.Color.TRANSPARENT));
+        callCard.addView(PhoneUi.label(this,"CALL CONTROL",11,PhoneUi.FOREST,true));
+        callCaption=PhoneUi.label(this,"Your main phone handles the audio.",14,PhoneUi.INK,false);
+        callCard.addView(callCaption,PhoneUi.margins(this,7,12));
+        callControls=PhoneUi.row(this);
+        answer=button("Answer",()->command("answer",""));
+        end=PhoneUi.button(this,"End call",PhoneUi.RED,PhoneUi.RED_PALE,PhoneUi.RED_PALE);
+        end.setOnClickListener(v->command("end",""));
+        callControls.addView(answer,PhoneUi.weight(this));
+        callControls.addView(end,PhoneUi.weight(this));
+        callControls.setVisibility(View.GONE);
+        callCard.addView(callControls);
+        root.addView(callCard,PhoneUi.margins(this,0,13));
+
+        note=PhoneUi.label(this,"",13,PhoneUi.RED,false);
+        root.addView(note,PhoneUi.margins(this,0,7));
+
+        LinearLayout nav = PhoneUi.row(this);
+        for(String item:new String[]{"Dial","Contacts","Favorites","Recents"}){
+            Button button=PhoneUi.button(this,item,PhoneUi.MUTED,PhoneUi.CARD,PhoneUi.BORDER);
+            button.setTextSize(12);
+            button.setPadding(dp(4),dp(12),dp(4),dp(12));
+            button.setOnClickListener(v->selectTab(item));
+            navigation.add(button);
+            nav.addView(button,PhoneUi.weight(this));
         }
-        root.addView(tabs);
-        tabContent = new LinearLayout(this);
-        tabContent.setOrientation(LinearLayout.VERTICAL);
+        root.addView(nav,PhoneUi.margins(this,6,16));
+
+        number=input("Phone number",InputType.TYPE_CLASS_PHONE);
+        number.setTextSize(27);
+        number.setTextColor(PhoneUi.INK);
+        number.setGravity(android.view.Gravity.CENTER);
+        number.setSingleLine(true);
+        dial=button("Call using main phone",()->command("dial",number.getText().toString()));
+        tabContent=PhoneUi.column(this);
         root.addView(tabContent);
         selectTab("Dial");
 
-        root.addView(text("Live audio research",19));
-        root.addView(text("The host is testing whether Android permits live call audio without root, Shizuku, or extra hardware. Calling here still controls the host phone only.",13));
-        root.addView(text("Incoming call alerts", 19));
-        alerts = button("Enable alerts", () -> toggleAlerts());
-        root.addView(alerts);
-        root.addView(button("Update host Wi-Fi address", () -> {
-            EditText field = input("Host Wi-Fi IP", InputType.TYPE_CLASS_TEXT);
-            String current = RemoteClient.address(this);
-            if (current.startsWith("http://")) {
-                String hostOnly = current.substring(7);
-                if (hostOnly.endsWith(":47321")) hostOnly = hostOnly.substring(0, hostOnly.length() - 6);
-                field.setText(hostOnly);
+        PhoneUi.space(root,this,17);
+        LinearLayout settingsPanel=PhoneUi.card(this);
+        settingsPanel.setVisibility(View.GONE);
+        settingsPanel.addView(PhoneUi.label(this,"Connection settings",19,PhoneUi.INK,true));
+        settingsPanel.addView(PhoneUi.label(this,"Your saved pairing remains active across app restarts.",13,PhoneUi.MUTED,false),
+                PhoneUi.margins(this,5,14));
+
+        alerts=secondary("Incoming call alerts",this::toggleAlerts);
+        settingsPanel.addView(alerts,PhoneUi.margins(this,0,9));
+        settingsPanel.addView(secondary("Update main phone's Wi-Fi address", () -> {
+            EditText field=input("Main phone Wi-Fi IP",InputType.TYPE_CLASS_TEXT);
+            String current=RemoteClient.address(this);
+            if(current.startsWith("http://")){
+                String host=current.substring(7);
+                if(host.endsWith(":47321")) host=host.substring(0,host.length()-6);
+                field.setText(host);
             }
+            LinearLayout wrap=PhoneUi.column(this);
+            wrap.setPadding(dp(18),0,dp(18),0);
+            wrap.addView(field);
             new AlertDialog.Builder(this)
-                .setTitle("Reconnect to your main phone")
-                .setMessage("If its Wi-Fi address changed, enter the new one. Your pairing stays saved.")
-                .setView(field)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Save", (dialog, which) -> {
-                    try {
-                        RemoteClient.changeAddress(this, field.getText().toString());
-                        if (note != null) note.setText("Address saved. Your pairing is still connected.");
-                        fetchStatus();
-                    } catch (Exception error) {
-                        if (note != null) note.setText(error.getMessage());
-                    }
-                }).show();
-        }));
-        root.addView(button("Disconnect this device", () -> {
+                    .setTitle("Update phone address")
+                    .setMessage("The phone's IP changed? You can reconnect without pairing again.")
+                    .setView(wrap)
+                    .setNegativeButton("Cancel",null)
+                    .setPositiveButton("Save",(dialog,which)->{
+                        try {
+                            RemoteClient.changeAddress(this,field.getText().toString());
+                            if(note!=null) note.setText("Address saved. Pairing kept.");
+                            fetchStatus();
+                        }catch(Exception error){
+                            if(note!=null) note.setText(error.getMessage());
+                        }
+                    }).show();
+        }),PhoneUi.margins(this,0,9));
+        settingsPanel.addView(secondary("Disconnect this device",()->{
             new AlertDialog.Builder(this)
-                    .setTitle("Disconnect from your phone?")
-                    .setPositiveButton("Disconnect", (dialog, which) -> {
-                        stopService(new Intent(this, CompanionService.class));
+                    .setTitle("Disconnect this device?")
+                    .setMessage("You will need a fresh pairing code to reconnect.")
+                    .setNegativeButton("Cancel",null)
+                    .setPositiveButton("Disconnect",(dialog,which)->{
+                        stopService(new Intent(this,CompanionService.class));
                         RemoteClient.forget(this);
-                        showPair("", "");
-                    })
-                    .setNegativeButton("Cancel", null)
-                    .show();
-        }));
-        root.addView(button("Use this device as the main phone instead", () -> changeRole()));
-        note = text("",14);
-        root.addView(note);
+                        showPair("","");
+                    }).show();
+        }),PhoneUi.margins(this,0,9));
+        settingsPanel.addView(secondary("Switch to main phone mode",this::changeRole));
+        Button toggle=secondary("Connection settings",()->settingsPanel.setVisibility(
+                settingsPanel.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE));
+        root.addView(toggle);
+        root.addView(settingsPanel,PhoneUi.margins(this,10,0));
         updateAlertsButton();
         fetchStatus();
     }
 
     private void selectTab(String name) {
-        tab = name;
-        if (tabContent == null) return;
-        tabContent.removeAllViews();
-        if ("Dial".equals(name)) {
-            addKeypad(tabContent);
-        } else if ("Contacts".equals(name)) {
-            showContacts();
-        } else if ("Favorites".equals(name)) {
-            showFavorites();
-        } else {
-            showRecents();
+        tab=name;
+        for(int i=0;i<navigation.size();i++){
+            Button b=navigation.get(i);
+            boolean selected=new String[]{"Dial","Contacts","Favorites","Recents"}[i].equals(name);
+            b.setBackground(PhoneUi.background(this,
+                    selected?PhoneUi.FOREST:PhoneUi.CARD,14,
+                    selected?android.graphics.Color.TRANSPARENT:PhoneUi.BORDER));
+            b.setTextColor(selected?PhoneUi.CARD:PhoneUi.MUTED);
         }
+        if(tabContent==null) return;
+        tabContent.removeAllViews();
+        if("Dial".equals(name)) addKeypad(tabContent);
+        else if("Contacts".equals(name)) showContacts();
+        else if("Favorites".equals(name)) showFavorites();
+        else showRecents();
     }
 
     private void addKeypad(LinearLayout target) {
-        String[][] keys = {
-                {"1","2","3"}, {"4","5","6"}, {"7","8","9"}, {"*","0","#"}
+        LinearLayout dialCard=PhoneUi.card(this);
+        dialCard.addView(PhoneUi.label(this,"Enter a number",18,PhoneUi.INK,true));
+        dialCard.addView(number,PhoneUi.margins(this,8,12));
+        final String[][] keys={
+                {"1","2","3"},{"4","5","6"},{"7","8","9"},{"*","0","#"}
         };
-        for (String[] rowKeys : keys) {
-            LinearLayout row = row();
-            for (String key : rowKeys) {
-                Button button = button(key, () -> {
-                    if ("active".equals(activeState)) {
-                        if (dtmfReady) command("dtmf", key);
-                        else if (note != null) note.setText("In-call menu tones require Android's default Phone interface; this app cannot send them without that role.");
-                    } else {
-                        number.append(key);
-                    }
+        for(String[] group:keys){
+            LinearLayout line=PhoneUi.row(this);
+            for(String digit:group){
+                Button key=PhoneUi.button(this,digit,PhoneUi.INK,PhoneUi.BG,android.graphics.Color.TRANSPARENT);
+                key.setTextSize(27);
+                key.setMinHeight(dp(61));
+                key.setMinimumHeight(dp(61));
+                key.setBackground(PhoneUi.background(this,PhoneUi.BG,31,android.graphics.Color.TRANSPARENT));
+                key.setOnClickListener(v->{
+                    if("active".equals(activeState)){
+                        if(dtmfReady) command("dtmf",digit);
+                        else if(note!=null) note.setText("Menu tones are unavailable without advanced call access on the main phone.");
+                    }else number.append(digit);
                 });
-                button.setTextSize(25);
-                button.setAllCaps(false);
-                row.addView(button, weighted());
+                line.addView(key,PhoneUi.weight(this));
             }
-            target.addView(row);
+            dialCard.addView(line,PhoneUi.margins(this,2,6));
         }
-        LinearLayout row = row();
-        row.addView(button("+", () -> number.append("+")), weighted());
-        row.addView(button("Delete", () -> {
-            int start = number.getSelectionStart();
-            if (start > 0) number.getText().delete(start - 1,start);
-        }), weighted());
-        row.addView(button("Clear", () -> number.setText("")), weighted());
-        target.addView(row);
-        target.addView(text("During a call, keypad buttons send menu tones when the main phone has In-call keypad enabled.", 12));
+        LinearLayout editing=PhoneUi.row(this);
+        editing.addView(secondary("+",()->number.append("+")),PhoneUi.weight(this));
+        editing.addView(secondary("Delete",()->{
+            int start=number.getSelectionStart();
+            if(start>0)number.getText().delete(start-1,start);
+        }),PhoneUi.weight(this));
+        editing.addView(secondary("Clear",()->number.setText("")),PhoneUi.weight(this));
+        dialCard.addView(editing,PhoneUi.margins(this,6,13));
+        dialCard.addView(dial);
+        target.addView(dialCard);
+        target.addView(PhoneUi.label(this,
+                "Calls use the SIM in your main phone. Voice audio does not play on this device yet.",
+                12,PhoneUi.MUTED,false),PhoneUi.margins(this,11,0));
     }
 
     private void showContacts() {
+        tabContent.addView(PhoneUi.label(this,"Contacts",22,PhoneUi.INK,true),PhoneUi.margins(this,0,10));
         if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             tabContent.addView(text("Use contacts saved on this device. Nothing is uploaded to the main phone.", 14));
             tabContent.addView(button("Allow contacts", () ->
@@ -288,7 +350,7 @@ public final class ClientActivity extends Activity {
             return;
         }
         search = input("Search contacts", InputType.TYPE_CLASS_TEXT);
-        tabContent.addView(search);
+        tabContent.addView(search,PhoneUi.margins(this,0,12));
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -335,7 +397,7 @@ public final class ClientActivity extends Activity {
     private void renderContacts(String filter) {
         if (tabContent == null || !"Contacts".equals(tab)) return;
         // Keep the search field and replace only the result rows.
-        while (tabContent.getChildCount() > 1) tabContent.removeViewAt(1);
+        while (tabContent.getChildCount() > 2) tabContent.removeViewAt(2);
         String query = filter.toLowerCase().trim();
         int count = 0;
         for (Contact c : contacts) {
@@ -372,6 +434,7 @@ public final class ClientActivity extends Activity {
     }
 
     private void showFavorites() {
+        tabContent.addView(PhoneUi.label(this,"Favorites",22,PhoneUi.INK,true),PhoneUi.margins(this,0,12));
         Set<String> favorites = prefs().getStringSet("favorite_numbers", new HashSet<>());
         if (favorites.isEmpty()) {
             tabContent.addView(text("Star contacts to keep them here.", 14));
@@ -387,6 +450,7 @@ public final class ClientActivity extends Activity {
     }
 
     private void showRecents() {
+        tabContent.addView(PhoneUi.label(this,"Recent call requests",22,PhoneUi.INK,true),PhoneUi.margins(this,0,8));
         tabContent.addView(text("Recent call requests from this device, not the main phone's call history.", 12));
         JSONArray recent;
         try { recent = new JSONArray(prefs().getString("recent", "[]")); }
@@ -461,16 +525,31 @@ public final class ClientActivity extends Activity {
                     String call = state.optString("callState","unknown");
                     activeState = call;
                     dtmfReady = state.optBoolean("dtmfReady", false);
-                    connection.setText("Connected to " + state.optString("model","your phone")
-                            + "\nCall status: " + call
-                            + ("ringing".equals(call) ? "\nIncoming call on your main phone" : ""));
+                    connection.setText(
+                            "Connected  |  " + state.optString("model","Main phone") +
+                            ("idle".equals(call) ? "  |  Ready" :
+                            "ringing".equals(call) ? "  |  Ringing" :
+                            "active".equals(call) ? "  |  On a call" : "  |  " + call));
+                    connection.setTextColor(PhoneUi.FOREST);
+                    if(callCaption!=null)callCaption.setText("ringing".equals(call)
+                            ? "Incoming call on your main phone."
+                            : "active".equals(call)
+                            ? "Call active. Audio remains on your main phone."
+                            : "Ready to place a call. Audio stays on your main phone.");
+                    if(callControls!=null)callControls.setVisibility(
+                            "ringing".equals(call)||"active".equals(call)?View.VISIBLE:View.GONE);
                     if (answer != null) answer.setEnabled("ringing".equals(call));
                     if (end != null) end.setEnabled("ringing".equals(call) || "active".equals(call));
                     if (dial != null) dial.setEnabled("idle".equals(call));
                 });
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    if (connection != null) connection.setText("Offline. Check the main phone and Wi-Fi.");
+                    if (connection != null) {
+                        connection.setText("Offline  |  Check main phone Wi-Fi");
+                        connection.setTextColor(PhoneUi.RED);
+                    }
+                    if(callCaption!=null)callCaption.setText("Your saved pairing is still here. Reconnect when the host is online.");
+                    if(callControls!=null)callControls.setVisibility(View.GONE);
                     if (dial != null) dial.setEnabled(false);
                     if (answer != null) answer.setEnabled(false);
                     if (end != null) end.setEnabled(false);
@@ -531,40 +610,41 @@ public final class ClientActivity extends Activity {
     }
 
     private LinearLayout row() {
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.HORIZONTAL);
-        return layout;
+        return PhoneUi.row(this);
     }
 
     private LinearLayout.LayoutParams weighted() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0,-2,1f);
-        p.setMargins(dp(2),dp(3),dp(2),dp(3));
-        return p;
+        return PhoneUi.weight(this);
     }
 
     private TextView text(String value,int sp) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(sp);
+        TextView view=PhoneUi.label(this,value,sp,PhoneUi.INK,false);
         view.setPadding(dp(3),dp(6),dp(3),dp(6));
         return view;
     }
 
     private EditText input(String hint,int type) {
-        EditText view = new EditText(this);
-        view.setSingleLine(true);
-        view.setTextSize(17);
-        view.setHint(hint);
-        view.setInputType(type);
-        return view;
+        EditText field=new EditText(this);
+        field.setSingleLine(true);
+        field.setTextSize(16);
+        field.setTextColor(PhoneUi.INK);
+        field.setHintTextColor(PhoneUi.MUTED);
+        field.setHint(hint);
+        field.setInputType(type);
+        field.setPadding(dp(13),dp(13),dp(13),dp(13));
+        field.setBackground(PhoneUi.background(this,PhoneUi.BG,13,PhoneUi.BORDER));
+        return field;
     }
 
     private Button button(String value,Runnable action) {
-        Button view = new Button(this);
-        view.setAllCaps(false);
-        view.setText(value);
-        view.setTextSize(15);
-        view.setOnClickListener(v -> action.run());
+        Button view=PhoneUi.button(this,value,PhoneUi.CARD,PhoneUi.FOREST,android.graphics.Color.TRANSPARENT);
+        view.setOnClickListener(v->action.run());
+        return view;
+    }
+
+    private Button secondary(String value,Runnable action) {
+        Button view=PhoneUi.button(this,value,PhoneUi.FOREST,PhoneUi.PALE,android.graphics.Color.TRANSPARENT);
+        view.setOnClickListener(v->action.run());
         return view;
     }
 

@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 9,
-        "The versionCode must be at least 9 and increase on subsequent releases")
-require("versionName '0.6.1'" in gradle,
+require(match is not None and int(match.group(1)) >= 10,
+        "The versionCode must be at least 10 and increase on subsequent releases")
+require("versionName '0.7.0'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user rejected both first-run privileged setup and default Phone role.

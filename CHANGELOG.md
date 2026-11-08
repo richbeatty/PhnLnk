@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.7.0, interface refresh
+
+- New reusable native visual style with muted green surfaces, readable typography, clear primary actions and consistent controls, on host, companion, and role selection.
+- Companion reorganized into a focused keypad, contacts, favorites, and recent call-request views.
+- Live call status and answer/end controls are now visibly separated from number entry.
+- Saved pairing, incoming-call alerts, host Wi-Fi address changes, and disconnection are organized under Connection settings.
+- Main phone has a simpler high-contrast status and QR pairing view.
+- Corrected contact search rendering to keep the search field visible while refreshing results.
+- Preserved non-default-dialer calling and the explicit limitation that voice audio remains on the host phone.
+- No new remote cellular audio capability is claimed; Android default Phone role still does not grant modem audio capture.
+
+
 ## Unreleased, v0.6.1 maintenance changes
 
 - Formalized permanent requirements in `MAINTAINER.md` and `AGENTS.md`.

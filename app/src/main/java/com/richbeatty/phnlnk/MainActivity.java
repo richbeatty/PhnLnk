@@ -43,39 +43,38 @@ public final class MainActivity extends Activity {
             finish();
             return;
         }
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        int p = (int)(22 * getResources().getDisplayMetrics().density);
-        root.setPadding(p, p, p, p);
-        TextView title = new TextView(this);
-        title.setText("PhnLnk");
-        title.setTextSize(32);
-        root.addView(title);
-        TextView intro = new TextView(this);
-        intro.setText("Your number. More devices.\n\nWhat do you want this device to do?");
-        intro.setTextSize(17);
-        intro.setPadding(0, p, 0, p);
-        root.addView(intro);
-        root.addView(choice("This phone has my SIM", "host", HostActivity.class));
-        root.addView(choice("Connect to my other phone", "client", ClientActivity.class));
-        TextView note = new TextView(this);
-        note.setText("\nPhone control preview: two-way call audio is not available on companion devices.");
-        note.setTextSize(13);
-        root.addView(note);
+        PhoneUi.screen(this);
+        LinearLayout root=PhoneUi.column(this);
+        root.setBackgroundColor(PhoneUi.BG);
+        int pad=PhoneUi.dp(this,23);
+        root.setPadding(pad,PhoneUi.dp(this,42),pad,pad);
+        TextView mark=PhoneUi.label(this,"P",29,PhoneUi.CARD,true);
+        mark.setGravity(android.view.Gravity.CENTER);
+        mark.setBackground(PhoneUi.background(this,PhoneUi.FOREST,22,android.graphics.Color.TRANSPARENT));
+        root.addView(mark,new LinearLayout.LayoutParams(PhoneUi.dp(this,76),PhoneUi.dp(this,76)));
+        root.addView(PhoneUi.label(this,"PhnLnk",36,PhoneUi.INK,true),PhoneUi.margins(this,24,5));
+        root.addView(PhoneUi.label(this,"Your phone. More places.",17,PhoneUi.MUTED,false));
+        PhoneUi.space(root,this,32);
+        LinearLayout panel=PhoneUi.card(this);
+        panel.addView(PhoneUi.label(this,"How will you use this device?",20,PhoneUi.INK,true));
+        panel.addView(PhoneUi.label(this,"You can change this later. Your SIM and phone number stay where they are.",13,PhoneUi.MUTED,false),PhoneUi.margins(this,8,18));
+        panel.addView(choice("This phone has my SIM","host",HostActivity.class));
+        panel.addView(choice("Connect to another phone","client",ClientActivity.class),PhoneUi.margins(this,10,0));
+        root.addView(panel);
+        root.addView(PhoneUi.label(this,
+                "Call-control preview. Remote two-way cellular voice audio is not yet supported.",
+                13,PhoneUi.MUTED,false),PhoneUi.margins(this,19,0));
         setContentView(root);
     }
 
-    private View choice(String label, String role, Class<?> activity) {
-        Button button = new Button(this);
-        button.setAllCaps(false);
-        button.setText(label);
-        button.setTextSize(17);
-        button.setOnClickListener(v -> {
-            getSharedPreferences("mode", MODE_PRIVATE).edit()
-                    .putString("role", role)
-                    .putBoolean("hosting_enabled", "host".equals(role))
+    private View choice(String label,String role,Class<?> activity) {
+        Button button=PhoneUi.button(this,label,PhoneUi.CARD,PhoneUi.FOREST,android.graphics.Color.TRANSPARENT);
+        button.setOnClickListener(v->{
+            getSharedPreferences("mode",MODE_PRIVATE).edit()
+                    .putString("role",role)
+                    .putBoolean("hosting_enabled","host".equals(role))
                     .apply();
-            startActivity(new Intent(this, activity));
+            startActivity(new Intent(this,activity));
             finish();
         });
         return button;
