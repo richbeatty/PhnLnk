@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.1, fix connection status and local ADB discovery
+
+- Removed an overly strict local-interface filter that could discard Android's own mDNS advertised debugging port.
+- Kept every actual ADB connection strictly on 127.0.0.1.
+- Added detailed connection phases: finding port, connecting, copying helper, starting helper, waiting for health check.
+- Added 14-second timeout to ADB shell commands so the status cannot hang indefinitely on a stopped command.
+- Added a warning after 45 seconds without connection progress.
+- Added a manual connection-port recovery field, using the number on Android's Wireless Debugging screen, separate from the six-digit pairing port.
+- Added safe local helper crash log diagnostics if the launch exits early.
+- Added regression checks for these fixes.
+- Still requires real MP01 testing of audio compatibility. No two-way remote voice claims.
+
+
 ## v0.8.0, guided audio access and reconnection
 
 - Added opt-in guided Wireless Debugging setup on the main phone with Android pairing-code notification.

@@ -39,6 +39,14 @@ Workflow: user taps Guided audio setup on the SIM host, grants notification perm
 
 **Android can turn Wireless Debugging off after reboot, Wi-Fi changes, or security changes.** A normal application cannot safely switch it on again or silently authorize itself. Do not make that claim. A shell helper running only proves shell access, not the cellular audio capture/injection or secondary-device calling.
 
+## November 7, 2026: 0.8.1 Android connection stall troubleshooting
+
+User reported PhnLnk stuck on "Connecting to Android" after the guided pairing setup. The earlier ADB port discovery filtered mDNS results using `NetworkInterface.getByInetAddress`, an unnecessary assumption which may reject Android's own advertised address (notably IPv6 / scoped interfaces). The connection was always to loopback regardless of the advertised host. Updated to follow the established JemRec mDNS discovery pattern, connecting **only to 127.0.0.1**.
+
+Additional repairs: bound each ADB shell command's wait to 14 seconds, show specific progress stages instead of an indefinite Connecting spinner, show a 45-second stale-state warning, expose an optional manual **connection** port fallback from the Wireless Debugging main settings screen (not the short-lived **pairing** port), and return brief sanitized shell-helper startup errors. The existing authorized pairing is reused and the app does not request a fresh code unnecessarily.
+
+**Not verified on the user's device.** A mDNS filter is a plausible bug, not a confirmed cause. A successful shell helper still does not prove actual call audio.
+
 ## Release signing incident and remediation
 
 Versions 0.1 through 0.6 were generally produced with GitHub-hosted runner debug certificates. Those certificates change between builds. An APK update fails when the certificate does not match the installed version. A new APK cannot bypass this rule.

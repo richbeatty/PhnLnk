@@ -32,6 +32,17 @@ final class AudioAccessState {
                 Context.MODE_PRIVATE).getBoolean("adb_paired", false);
     }
 
+    static int manualPort(Context context) {
+        int port = prefs(context).getInt("manual_port", 0);
+        return port >= 1024 && port <= 65535 ? port : 0;
+    }
+
+    static void setManualPort(Context context, int port) {
+        if (port != 0 && (port < 1024 || port > 65535))
+            throw new IllegalArgumentException("Port must be between 1024 and 65535");
+        prefs(context).edit().putInt("manual_port", port).apply();
+    }
+
     static void enable(Context context) {
         prefs(context).edit().putBoolean("auto_reconnect", true).apply();
     }
@@ -58,9 +69,16 @@ final class AudioAccessState {
     }
 
     static String message(Context context) {
-        return prefs(context).getString("message", isPaired(context)
+        String result = prefs(context).getString("message", isPaired(context)
                 ? "Android pairing saved. Checking the audio helper."
                 : "One-time Android pairing has not been completed.");
+        if (CONNECTING.equals(state(context)) &&
+                System.currentTimeMillis() - prefs(context)
+                        .getLong("last_updated",0) > 45000)
+            return "The audio helper has not responded for 45 seconds. "
+                    + "Keep Wireless Debugging on, then tap Retry. If discovery fails, "
+                    + "enter the connection port displayed in Android's Wireless Debugging settings.";
+        return result;
     }
 
     static String display(Context context) {
@@ -69,7 +87,11 @@ final class AudioAccessState {
                 ? "Saved pairing, automatic reconnect off"
                 : "Not configured";
         if (READY.equals(state)) return "Helper ready. Call audio not verified.";
-        if (CONNECTING.equals(state)) return "Connecting to Android...";
+        if (CONNECTING.equals(state)) {
+            long age = System.currentTimeMillis() -
+                    prefs(context).getLong("last_updated", 0);
+            return age > 45000 ? "Connection stalled. Tap Retry." : "Connecting to Android...";
+        }
         if (PAIRING.equals(state)) return "Waiting for Android pairing approval...";
         if (DEBUGGING_OFF.equals(state)) return "Wireless Debugging needs attention";
         if (NEEDS_PAIRING.equals(state)) return "Pair Android once";

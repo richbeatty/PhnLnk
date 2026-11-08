@@ -10,6 +10,8 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.InputType;
+import android.widget.EditText;
 import android.provider.Settings;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -85,6 +87,36 @@ public final class HostAudioActivity extends Activity {
         setup.addView(stop,PhoneUi.margins(this,10,0));
         setup.addView(secondaryButton("Open Android Developer options", this::openSettings),
                 PhoneUi.margins(this,10,0));
+        setup.addView(secondaryButton("Pair again if Android forgot this app", this::requestGuidedSetup),
+                PhoneUi.margins(this,10,0));
+        setup.addView(PhoneUi.label(this,"CONNECTION PORT (ONLY IF AUTO-DISCOVERY FAILS)",
+                11,PhoneUi.MUTED,true),PhoneUi.margins(this,17,7));
+        setup.addView(PhoneUi.label(this,
+                "Use the port beside the IP address on the main Wireless Debugging screen. "
+                + "This is NOT the port in the six-digit pairing-code dialog.",
+                12,PhoneUi.MUTED,false),PhoneUi.margins(this,0,7));
+        final EditText portField = new EditText(this);
+        portField.setSingleLine(true);
+        portField.setInputType(InputType.TYPE_CLASS_NUMBER);
+        portField.setTextSize(18);
+        portField.setHint("Connection port, for example 38451");
+        portField.setText(AudioAccessState.manualPort(this) > 0
+                ? String.valueOf(AudioAccessState.manualPort(this)) : "");
+        portField.setBackground(PhoneUi.background(this,PhoneUi.BG,13,PhoneUi.BORDER));
+        portField.setPadding(dp(13),dp(12),dp(13),dp(12));
+        setup.addView(portField,PhoneUi.margins(this,0,10));
+        setup.addView(secondaryButton("Save port and retry",()->{
+            String input = portField.getText().toString().trim();
+            try {
+                int port = input.isEmpty() ? 0 : Integer.parseInt(input);
+                AudioAccessState.setManualPort(this,port);
+                details.setText(port == 0 ? "Manual port cleared. Using automatic discovery."
+                        : "Connection port saved. Retrying Android...");
+                retryConnection();
+            } catch (Exception error) {
+                details.setText("Enter the port from Wireless Debugging (1024 through 65535).");
+            }
+        }));
         root.addView(setup,PhoneUi.margins(this,13,0));
 
         LinearLayout test = PhoneUi.card(this);
@@ -241,6 +273,8 @@ public final class HostAudioActivity extends Activity {
     private void refreshState() {
         if (connection == null) return;
         connection.setText(AudioAccessState.display(this));
+        connection.setTextColor(AudioAccessState.READY.equals(AudioAccessState.state(this))
+                ? PhoneUi.FOREST : PhoneUi.INK);
         details.setText(AudioAccessState.message(this));
         boolean paired = AudioAccessState.isPaired(this);
         boolean enabled = AudioAccessState.autoReconnect(this);

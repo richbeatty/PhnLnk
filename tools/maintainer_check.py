@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 11,
-        "The versionCode must be at least 11 and increase on subsequent releases")
-require("versionName '0.8.0'" in gradle,
+require(match is not None and int(match.group(1)) >= 12,
+        "The versionCode must be at least 12 and increase on subsequent releases")
+require("versionName '0.8.1'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -82,6 +82,18 @@ require('auto_reconnect' in audio_state,
         "Remember the user's automatic reconnect setting")
 require('AudioAccessState.isPaired(this)' in audio_service,
         "Never try privileged helper startup before the user has paired Android")
+host_adb = content("app/src/main/java/com/richbeatty/phnlnk/HostAdb.java")
+require("NetworkInterface.getByInetAddress(host)" not in host_adb,
+        "Do not silently ignore Android's own mDNS advertisement due to interface address mismatch")
+require("AudioAccessState.manualPort(context)" in host_adb and
+        "No Wireless Debugging connection port found" in host_adb,
+        "Keep the explicit connection port fallback and understandable error")
+require("TimeoutException" in host_adb and "future.get(14000" in host_adb,
+        "ADB commands must have a bounded wait, never stick on Connecting forever")
+require("setManualPort(this,port)" in audio_ui,
+        "Keep an optional manual connection-port recovery control")
+require("Connection stalled. Tap Retry." in audio_state,
+        "Stale Connecting state must be diagnosed, not displayed forever")
 require("AudioAccessState.enable(this)" in audio_pairing,
         "Remember the approved pairing and reconnect choice")
 require('status.put("audioRelayed", false)' in core,

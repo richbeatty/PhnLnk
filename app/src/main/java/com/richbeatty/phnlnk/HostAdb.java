@@ -4,6 +4,11 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Build;
 import android.net.wifi.WifiManager;
+import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
 import android.util.Log;
 import io.github.muntashirakon.adb.AbsAdbConnectionManager;
 import io.github.muntashirakon.adb.AdbStream;
@@ -15,7 +20,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -52,6 +56,12 @@ final class HostAdb {
     private static final String MAIN_CLASS = "com.richbeatty.phnlnk.shell.AudioProbe";
     private static final String PREFS = "phnlnk_audio_bootstrap";
 
+    interface Progress { void onStep(String message); }
+
+    private static void progress(Progress listener, String message) {
+        if (listener != null) listener.onStep(message);
+    }
+
     private final Context context;
     private final KeyIdentity identity;
 
@@ -82,23 +92,46 @@ final class HostAdb {
     }
 
     String startProbe() throws Exception {
+        return startProbe(null);
+    }
+
+    String startProbe(Progress listener) throws Exception {
         String key = probeKey();
+        progress(listener, "Checking whether the local audio helper already responds...");
         String existing;
         try {
             existing = AudioProbeClient.request(context, "PING");
         } catch (Exception ignored) { existing = ""; }
-        if (existing.startsWith("READY:")) return existing;
+        if (existing.startsWith("READY:V1:")) return existing;
 
-        int port = discover(AdbMdns.SERVICE_TYPE_TLS_CONNECT, 10000);
+        int configuredPort = AudioAccessState.manualPort(context);
+        progress(listener, "Searching for the Wireless Debugging connection port...");
+        int discoveredPort = discover(AdbMdns.SERVICE_TYPE_TLS_CONNECT, 9000);
+        int port = discoveredPort > 0 ? discoveredPort : configuredPort;
         if (port <= 0) {
-            throw new IllegalStateException(
-                    "Wireless debugging is not running. Turn it on in Android settings, then retry.");
+            throw new IllegalStateException("No Wireless Debugging connection port found. "
+                    + "Keep Wireless Debugging enabled and Wi-Fi on. "
+                    + "You can enter the port printed on Android's Wireless Debugging screen.");
         }
         Connection connection = new Connection(identity);
         try {
-            boolean accepted = connection.connect(LOOPBACK, port);
+            progress(listener, "Connecting to Android's local debugging port " + port + "...");
+            boolean accepted;
+            try {
+                accepted = connection.connect(LOOPBACK, port);
+            } catch (Exception primary) {
+                if (configuredPort <= 0 || configuredPort == port) throw primary;
+                progress(listener, "Trying the connection port you entered manually...");
+                accepted = connection.connect(LOOPBACK, configuredPort);
+            }
+            if (!accepted && !connection.isConnected() &&
+                    configuredPort > 0 && configuredPort != port) {
+                progress(listener, "Trying the connection port you entered manually...");
+                accepted = connection.connect(LOOPBACK, configuredPort);
+            }
             if (!accepted && !connection.isConnected())
-                throw new IllegalStateException("Android refused the saved pairing. Pair again.");
+                throw new IllegalStateException("Android rejected the saved pairing or connection port. "
+                        + "Check Wireless Debugging > Paired devices and the connection port.");
             // Stage only the bundled executable, not user data or call audio.
             File external = context.getExternalFilesDir(null);
             if (external == null) throw new IllegalStateException("Phone file storage is unavailable.");
@@ -112,6 +145,7 @@ final class HostAdb {
             String path = stage.getAbsolutePath();
             if (!path.matches("[A-Za-z0-9_./-]+"))
                 throw new IllegalStateException("Unexpected probe path on this phone.");
+            progress(listener, "Copying the bundled audio test helper into Android's shell...");
             String staged = shell(connection, "cp " + path + " " + PROBE_DEVICE_PATH
                     + " && chmod 600 " + PROBE_DEVICE_PATH + " && echo PROBE_STAGED");
             if (!staged.contains("PROBE_STAGED"))
@@ -122,6 +156,7 @@ final class HostAdb {
             String launch = "CLASSPATH=" + PROBE_DEVICE_PATH + " setsid nohup app_process / "
                     + MAIN_CLASS + " " + key
                     + " < /dev/null > " + PROBE_LOG + " 2>&1 & echo PROBE_STARTED";
+            progress(listener, "Starting the local shell helper...");
             String started = shell(connection, launch);
             if (!started.contains("PROBE_STARTED"))
                 throw new IllegalStateException("Shell process launch did not complete.");
@@ -129,6 +164,7 @@ final class HostAdb {
             connection.close();
         }
 
+        progress(listener, "Waiting for the audio helper to answer its local health check...");
         for (int attempt = 0; attempt < 10; attempt++) {
             try {
                 String response = AudioProbeClient.request(context, "PING");
@@ -136,8 +172,26 @@ final class HostAdb {
             } catch (Exception ignored) { }
             Thread.sleep(300);
         }
+        // If app_process exited, its local shell-owned log often gives the
+        // exact Android compatibility error. Fetch only the final 500 bytes,
+        // redact the private authorization key, and never log shell commands.
+        String diagnostic = "";
+        try {
+            Connection inspect = new Connection(identity);
+            try {
+                if (inspect.connect(LOOPBACK, port) || inspect.isConnected()) {
+                    diagnostic = shell(inspect,"tail -c 500 " + PROBE_LOG);
+                }
+            } finally {
+                inspect.close();
+            }
+        } catch (Exception ignored) { }
+        diagnostic = diagnostic == null ? "" : diagnostic.replace(key,"[redacted]").trim();
+        if (diagnostic.length() > 220) diagnostic = diagnostic.substring(diagnostic.length()-220);
         throw new IllegalStateException(
-                "The shell helper didn't start. This firmware may block shell audio helpers.");
+                "The shell helper did not respond after launch."
+                + (diagnostic.isEmpty() ? " Check Android Wireless Debugging."
+                : " Android reported: " + diagnostic));
     }
 
     private static String abbreviate(String value) {
@@ -166,15 +220,12 @@ final class HostAdb {
     private int discover(String serviceType, int timeoutMs) throws Exception {
         AtomicInteger result = new AtomicInteger(-1);
         CountDownLatch done = new CountDownLatch(1);
-        // mDNS may also see neighbors' debugging services. Never send a
-        // pairing code to anything except the host phone itself.
+        // Android may advertise its own adbd through an address that
+        // NetworkInterface.getByInetAddress does not match (e.g. scoped IPv6).
+        // Discovery only supplies an ephemeral port. The actual ADB session
+        // is ALWAYS opened against 127.0.0.1, never the advertised peer.
         AdbMdns mdns = new AdbMdns(context, serviceType, (InetAddress host, int port) -> {
-            boolean local = false;
-            try {
-                local = host.isLoopbackAddress() ||
-                        NetworkInterface.getByInetAddress(host) != null;
-            } catch (Exception ignored) { }
-            if (local && port > 0 && result.compareAndSet(-1, port)) done.countDown();
+            if (port > 0 && result.compareAndSet(-1, port)) done.countDown();
         });
         WifiManager wifi = (WifiManager) context.getApplicationContext()
                 .getSystemService(Context.WIFI_SERVICE);
@@ -195,19 +246,41 @@ final class HostAdb {
     }
 
     private static String shell(Connection manager, String command) throws Exception {
-        // Commands are program-created with fixed paths and no user-supplied
-        // shell syntax. No arbitrary remote command interface is exposed.
-        AdbStream stream = manager.openStream("shell:" + command);
-        try (InputStream input = stream.openInputStream()) {
-            ByteArrayOutputStream result = new ByteArrayOutputStream();
-            byte[] bytes = new byte[1024];
-            int n;
-            while ((n = input.read(bytes)) != -1 && result.size() < 16000) {
-                result.write(bytes, 0, n);
+        // Android's ADB library can wait indefinitely for EOF even when a
+        // shell command has exited. Time-limit the entire operation, including
+        // openStream(), so "Connecting..." never stays on screen forever.
+        ExecutorService timeout = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r,"PhnLnk-ADB-command");
+            thread.setDaemon(true);
+            return thread;
+        });
+        Future<String> future = timeout.submit(() -> {
+            AdbStream stream = manager.openStream("shell:" + command);
+            try (InputStream input = stream.openInputStream()) {
+                ByteArrayOutputStream result = new ByteArrayOutputStream();
+                byte[] bytes = new byte[1024];
+                int n;
+                while ((n = input.read(bytes)) != -1 && result.size() < 16000) {
+                    result.write(bytes,0,n);
+                }
+                return result.toString("UTF-8");
+            } finally {
+                try { stream.close(); } catch (Exception ignored) { }
             }
-            return result.toString("UTF-8");
+        });
+        try {
+            return future.get(14000, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException timeoutError) {
+            future.cancel(true);
+            throw new IllegalStateException(
+                    "Android's debugging shell stopped responding. "
+                    + "Toggle Wireless Debugging off and on, then retry.");
+        } catch (ExecutionException error) {
+            Throwable cause = error.getCause();
+            if (cause instanceof Exception) throw (Exception) cause;
+            throw new IllegalStateException("Android shell command failed",cause);
         } finally {
-            try {stream.close();} catch (Exception ignored) {}
+            timeout.shutdownNow();
         }
     }
 

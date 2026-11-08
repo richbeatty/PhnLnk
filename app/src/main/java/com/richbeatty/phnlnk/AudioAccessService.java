@@ -55,7 +55,9 @@ public final class AudioAccessService extends Service {
                         } else {
                             AudioAccessState.set(AudioAccessService.this,
                                     AudioAccessState.CONNECTING, "Looking for authorized Android debugging...");
-                            reply = new HostAdb(AudioAccessService.this).startProbe();
+                            reply = new HostAdb(AudioAccessService.this).startProbe(step ->
+                                    AudioAccessState.set(AudioAccessService.this,
+                                            AudioAccessState.CONNECTING, step));
                         }
                     }
                     ready = reply.startsWith("READY:V1:");
@@ -67,10 +69,13 @@ public final class AudioAccessService extends Service {
                 } catch (Exception error) {
                     String msg = error.getMessage() == null ? "Unknown connection error" : error.getMessage();
                     if (msg.contains("Wireless debugging") ||
-                            msg.contains("Pair again") || msg.contains("not running")) {
+                            msg.contains("Wireless Debugging") ||
+                            msg.contains("connection port") ||
+                            msg.contains("stopped responding") ||
+                            msg.contains("not running")) {
                         AudioAccessState.set(AudioAccessService.this,
                                 AudioAccessState.DEBUGGING_OFF,
-                                "Android Wireless Debugging is unavailable. Open Settings and enable it; pairing normally remains saved.");
+                                "Android's debugging port could not be reached. Confirm Wireless Debugging is enabled. If discovery fails, enter the port shown in Settings.");
                     } else {
                         Log.w("PhnLnkAudio","Automatic helper connection failed",error);
                         AudioAccessState.set(AudioAccessService.this,

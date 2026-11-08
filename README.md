@@ -10,6 +10,16 @@ The v0.7 native interface separates main-phone setup from companion calling. The
 
 The user is open to considering the default Phone app role only if it truly enables a complete calling experience. Android's public default-dialer APIs do not provide cellular call audio capture or injection, so PhnLnk does not ask for that role just to access a prettier call screen.
 
+## Troubleshooting Wireless Debugging connection
+
+If guided audio setup says **Connecting to Android** and does not proceed, v0.8.1 now shows the specific phase, or reports a stall after 45 seconds. Check that Wireless Debugging is on, the phone is on Wi-Fi, and **PhnLnk** appears under **Wireless Debugging > Paired devices**. Tap **Retry saved connection**.
+
+If automatic port discovery fails, open Android **Wireless Debugging** and copy the connection port shown beside the device's IP address (for example `192.168.1.5:39817` means enter only `39817`). Do NOT enter the temporary pairing port from the six-digit pairing-code popup. In PhnLnk's guided audio screen enter that connection port and select **Save port and retry**. This changes only the local ADB connection, not your phone number or carrier.
+
+If Android no longer lists PhnLnk under Paired devices, use **Pair again if Android forgot this app**. If Wireless Debugging turned off, Android requires you to turn it back on. **No debug authorization or cellular audio is bypassed.**
+
+Even if the local helper reports ready, two-way cellular audio on the second Android device is not yet available.
+
 ## What works
 
 - The host phone can request outgoing cellular calls through Android Telecom without becoming the default Phone app.
