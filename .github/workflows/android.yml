@@ -1,4 +1,4 @@
-name: Android debug APK
+name: Android APK
 
 on:
   push:
@@ -29,29 +29,35 @@ jobs:
           gradle-version: '8.9'
       - name: Build Android APK
         run: gradle --no-daemon :app:assembleDebug
-      - name: Prepare easy-download APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-MP01.apk
+      - name: Prepare installable APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk PhnLnk-Android.apk
       - name: Save APK in Actions
         uses: actions/upload-artifact@v4
         with:
-          name: PhnLnk-MP01-debug
-          path: PhnLnk-MP01.apk
+          name: PhnLnk-Android-debug
+          path: PhnLnk-Android.apk
           if-no-files-found: error
       - name: Publish downloadable GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.1
+          tag_name: v0.3.0
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.2.1 quick pairing preview
-          prerelease: false
+          name: PhnLnk v0.3.0 Android companion preview
+          prerelease: true
           make_latest: true
           fail_on_unmatched_files: true
-          files: PhnLnk-MP01.apk
+          files: PhnLnk-Android.apk
           body: |
-            Download the PhnLnk-MP01.apk asset below.
-            New: scan the QR code on the MP01 or enter a one-time six-digit code.
-            Paired browsers reconnect automatically without another login.
-            This APK is a local call-control preview only. Cellular call audio
-            does not reach the remote browser. Do not use for emergencies.
-            Only connect over trusted private Wi-Fi. Do not expose the
-            host HTTP port publicly. Shizuku and root are not required.
+            Same APK for the Android host phone and the secondary Android device.
+            NEW: native Android companion mode, dial pad, contacts, favorites,
+            recent dial requests, and opt-in incoming call alerts.
+            NEW: device-neutral branding and a dial pad for PC browsers.
+            Pair once via QR scan or local IP and six-digit code.
+
+            IMPORTANT: only call control works. You cannot have a two-way
+            voice conversation from the secondary device. Audio stays on the
+            SIM phone. Local trusted Wi-Fi only; unencrypted HTTP is not safe
+            on public networks. No Shizuku or root needed.
+            Do not rely on PhnLnk for emergency calls.
+            This GitHub Actions preview uses a temporary debug signing key.
+            You may need to uninstall the previous preview to install it.

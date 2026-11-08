@@ -55,7 +55,7 @@ final class PairingManager {
 
     synchronized String pair(String supplied) {
         String actual = current();
-        if (actual == null) throw new IllegalArgumentException("Open PhnLnk on the MP01 and tap Pair a device.");
+        if (actual == null) throw new IllegalArgumentException("Open PhnLnk on the host phone and tap Pair a device.");
         if (failures >= 5) {
             cancel();
             throw new IllegalArgumentException("Too many attempts. Start pairing again.");
@@ -70,14 +70,14 @@ final class PairingManager {
         Set<String> keys = new HashSet<>(prefs.getStringSet("keys", new HashSet<>()));
         if (keys.size() >= 10) {
             cancel();
-            throw new IllegalArgumentException("Too many devices. Clear paired devices on the MP01.");
+            throw new IllegalArgumentException("Too many devices. Clear paired devices on the host phone.");
         }
         byte[] value = new byte[32];
         random.nextBytes(value);
         String token = Base64.encodeToString(value, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         keys.add(hash(token));
         if (!prefs.edit().putStringSet("keys", keys).commit()) {
-            throw new IllegalStateException("Could not save this browser on the MP01");
+            throw new IllegalStateException("Could not save this browser on the host phone");
         }
         cancel();
         return token;

@@ -36,7 +36,7 @@ public final class GatewayService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (running) return START_STICKY;
 
-        Intent appIntent = new Intent(this, MainActivity.class);
+        Intent appIntent = new Intent(this, HostActivity.class);
         PendingIntent tap = PendingIntent.getActivity(this, 0, appIntent,
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification notification = new Notification.Builder(this, CHANNEL)

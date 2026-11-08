@@ -17,7 +17,12 @@ p {line-height:1.55}
 .card {border:1px solid #e0e6df;background:white;padding:22px;border-radius:18px;margin:22px 0}
 input {display:block;width:100%;font:inherit;border:1px solid #d4ddd4;border-radius:12px;padding:15px;margin:14px 0;background:#fff}
 #code {font-size:30px;letter-spacing:6px;text-align:center;font-variant-numeric:tabular-nums}
-#number {font-size:21px}
+#number {font-size:24px;text-align:center}
+#keypad {display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}
+#keypad button {font-size:23px;padding:14px}
+#recents {display:grid;gap:7px;margin-top:14px}
+#recents button {text-align:left;background:#fff;font-size:14px;padding:9px}
+.small-note {font-size:12px;color:#6e796e;margin:8px 0 15px}
 button {font:inherit;font-weight:650;border-radius:12px;background:#f2f6f1;color:#1b3625;
  border:1px solid #d8dfd7;padding:13px;cursor:pointer}
 button:disabled {opacity:.45;cursor:default}
@@ -42,14 +47,14 @@ button:disabled {opacity:.45;cursor:default}
 <p class="muted">Your phone, on your devices.</p>
 <section id="pair-screen" class="card" hidden>
   <h2>Connect your device</h2>
-  <p class="muted">Open PhnLnk on the MP01, tap <strong>Pair a device</strong>, and enter the six digits.</p>
+  <p class="muted">Open PhnLnk on your main phone, tap <strong>Pair a device</strong>, and enter the six digits.</p>
   <form id="pair-form">
     <input id="code" type="text" aria-label="Pairing code" inputmode="numeric"
       autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
     <button class="primary" id="connect" type="submit">Connect</button>
   </form>
   <p id="pair-error" role="status" aria-live="polite"></p>
-  <p class="muted">Only once. This browser will remember your MP01.</p>
+  <p class="muted">Only once. This browser will remember your phone.</p>
 </section>
 <section id="phone-screen" hidden>
   <div class="card row-top">
@@ -61,17 +66,20 @@ button:disabled {opacity:.45;cursor:default}
   </div>
   <div class="card">
     <h2>Dial</h2>
-    <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567">
-    <button class="primary" id="dial">Call from MP01</button>
+    <input id="number" type="tel" autocomplete="tel" placeholder="(555) 123-4567" aria-label="Phone number">
+    <div id="keypad" aria-label="Dial pad"></div>
+    <button class="primary" id="dial">Call using my number</button>
+    <div class="small-note">The keypad enters numbers. In-call touch tones aren't available yet.</div>
     <div class="row">
       <button id="answer">Answer</button>
       <button id="end">End call</button>
     </div>
     <p id="message" role="status" aria-live="polite"></p>
   </div>
+  <div class="card"><h2>Recent requests</h2><div id="recents"></div></div>
   <button id="disconnect" class="flat">Forget this browser</button>
 </section>
-<p class="small">This is still a call-control preview: audio stays on the MP01.
+<p class="small">This is still a call-control preview: voice audio stays on the main phone.
 No remote conversations yet. Only use on trusted private Wi-Fi.
 Do not forward the host port or rely on it for emergency calls.</p>
 </main>
@@ -93,7 +101,7 @@ function showPhone() {
 function forget() {
   token = null;
   localStorage.removeItem(KEY);
-  showPair('Tap Pair a device on your MP01 for a new code.');
+  showPair('Tap Pair a device on your main phone for a new code.');
 }
 function authHeaders(extra={}) {
   return Object.assign({'Authorization':'Bearer '+token},extra);
@@ -116,7 +124,7 @@ async function refresh() {
     $('dial').disabled = busy || data.callState !== 'idle' || !data.callPermission;
   } catch(e) {
     $('state').textContent = 'Disconnected';
-    $('device').textContent = 'Make sure the MP01 is online';
+    $('device').textContent = 'Make sure the main phone is online';
     ['answer','end','dial'].forEach(id=>$(id).disabled=true);
   }
 }
@@ -157,7 +165,8 @@ async function action(name,data={}) {
     if (r.status===401) {forget();return;}
     const out=await r.json();
     if(!r.ok || !out.ok) throw Error(out.error||'Request failed');
-    $('message').textContent='Sent to MP01';
+    $('message').textContent='Sent to your phone';
+    if(name==='dial') recordCall($('number').value);
   } catch(e) {
     $('message').textContent=e.message;
   } finally {
@@ -165,6 +174,49 @@ async function action(name,data={}) {
     setTimeout(refresh,700);
   }
 }
+const KEYPAD = ['1','2','3','4','5','6','7','8','9','*','0','#'];
+for (const digit of KEYPAD) {
+  const button = document.createElement('button');
+  button.type='button';
+  button.textContent=digit;
+  button.setAttribute('aria-label','Dial '+digit);
+  button.addEventListener('click',()=>{
+    $('number').value += digit;
+    $('number').focus();
+  });
+  $('keypad').appendChild(button);
+}
+function recordCall(number) {
+  try {
+    const key='phnlnk.browser.recent.v1';
+    const prev=JSON.parse(localStorage.getItem(key)||'[]');
+    const next=[number,...prev.filter(n=>n!==number)].slice(0,12);
+    localStorage.setItem(key,JSON.stringify(next));
+    showRecents();
+  } catch (_) { /* Storage may be restricted */ }
+}
+function showRecents() {
+  const target=$('recents');
+  target.replaceChildren();
+  let entries=[];
+  try { entries=JSON.parse(localStorage.getItem('phnlnk.browser.recent.v1')||'[]'); }
+  catch (_) {}
+  if (!entries.length) {
+    target.textContent='No recent call requests';
+    return;
+  }
+  for (const number of entries) {
+    const button=document.createElement('button');
+    button.textContent=number;
+    button.addEventListener('click',()=>{
+      $('number').value=number;
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+    target.appendChild(button);
+  }
+}
+showRecents();
+
 $('pair-form').addEventListener('submit',e=>{e.preventDefault();pair($('code').value.trim());});
 $('dial').addEventListener('click',()=>action('dial',{number:$('number').value}));
 $('answer').addEventListener('click',()=>action('answer'));

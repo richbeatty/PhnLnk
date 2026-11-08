@@ -59,7 +59,7 @@ final class CallController {
 
     static void dial(Context context, String input) throws Exception {
         if (!has(context, Manifest.permission.CALL_PHONE)) {
-            throw new IllegalStateException("Grant the Call phone permission on the MP01");
+            throw new IllegalStateException("Grant the Call phone permission on the host phone");
         }
         String number = normalizedNanp(input);
         TelecomManager telecom = (TelecomManager) context.getSystemService(Context.TELECOM_SERVICE);
@@ -69,7 +69,7 @@ final class CallController {
 
     static void answer(Context context) {
         if (!has(context, Manifest.permission.ANSWER_PHONE_CALLS)) {
-            throw new IllegalStateException("Grant the Answer phone calls permission on the MP01");
+            throw new IllegalStateException("Grant the Answer phone calls permission on the host phone");
         }
         if (!"ringing".equals(currentState(context))) {
             throw new IllegalStateException("No incoming call is ringing");
@@ -81,7 +81,7 @@ final class CallController {
 
     static void end(Context context) {
         if (!has(context, Manifest.permission.ANSWER_PHONE_CALLS)) {
-            throw new IllegalStateException("Grant the Answer phone calls permission on the MP01");
+            throw new IllegalStateException("Grant the Answer phone calls permission on the host phone");
         }
         TelecomManager telecom = (TelecomManager) context.getSystemService(Context.TELECOM_SERVICE);
         if (telecom == null) throw new IllegalStateException("Android Telecom is unavailable");
