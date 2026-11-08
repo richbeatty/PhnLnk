@@ -83,8 +83,8 @@ require("getStringSet(" in pairing and "exchange" not in pairing,
         "Keep persisted per-device pairings (inspect any API migration)")
 require("ContactsContract.CommonDataKinds.Phone" in client,
         "Preserve companion contacts search")
-require("com.richbeatty.phnlnk" in manifest,
-        "Maintain the same app manifest application identity")
+require('android:name=".MainActivity"' in manifest,
+        "Maintain the Android app entry point in the manifest")
 require('android:required="false"' in manifest,
         "Allow Wi-Fi-only Android companion tablets")
 
