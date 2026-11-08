@@ -37,21 +37,21 @@ jobs:
           name: PhnLnk-MP01-debug
           path: PhnLnk-MP01.apk
           if-no-files-found: error
-      - name: Publish downloadable GitHub preview release
+      - name: Publish downloadable GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.2.0
+          tag_name: v0.2.1
           target_commitish: ${{ github.sha }}
-          name: PhnLnk v0.2.0 quick pairing preview
-          prerelease: true
+          name: PhnLnk v0.2.1 quick pairing preview
+          prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
           files: PhnLnk-MP01.apk
           body: |
             Download the PhnLnk-MP01.apk asset below.
-            New: scan the QR code or enter a one-time six-digit code.
+            New: scan the QR code on the MP01 or enter a one-time six-digit code.
             Paired browsers reconnect automatically without another login.
             This APK is a local call-control preview only. Cellular call audio
             does not reach the remote browser. Do not use for emergencies.
-            Only connect over a trusted private Wi-Fi. Do not expose the
+            Only connect over trusted private Wi-Fi. Do not expose the
             host HTTP port publicly. Shizuku and root are not required.

@@ -33,6 +33,7 @@ import org.json.JSONObject;
 
 public final class MainActivity extends Activity {
     private TextView status;
+    private Button permissionsButton;
     private TextView pairCode;
     private TextView pairInfo;
     private ImageView qr;
@@ -57,8 +58,8 @@ public final class MainActivity extends Activity {
 
         TextView heading = text("PhnLnk", 29);
         root.addView(heading);
-        root.addView(text("Host for your AT&T line on the Minimal Phone MP01", 15));
-        root.addView(text("Prototype 0.1: browser call control. Voice audio is NOT relayed yet.", 15));
+        root.addView(text("Your AT&T number on your other devices.", 15));
+        root.addView(text("Call control preview. Voice stays on the MP01.", 13));
 
         status = text("", 15);
         LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
@@ -66,25 +67,10 @@ public final class MainActivity extends Activity {
         statusParams.setMargins(0, dp(17), 0, dp(14));
         root.addView(status, statusParams);
 
-        root.addView(button("Grant phone permissions", () -> requestPhonePermissions()));
-        root.addView(button("Start host", () -> {
-            if (!hasRequiredPermissions()) {
-                requestPhonePermissions();
-                return;
-            }
-            try {
-                startForegroundService(new Intent(this, GatewayService.class));
-            } catch (Exception e) {
-                status.setText("Could not start: " + e.getMessage());
-            }
-            handler.postDelayed(this::updateStatus, 500);
-        }));
-        root.addView(button("Stop host", () -> {
-            stopService(new Intent(this, GatewayService.class));
-            handler.postDelayed(this::updateStatus, 300);
-        }));
+        permissionsButton = button("Allow phone permissions", this::requestPhonePermissions);
+        root.addView(permissionsButton);
 
-        root.addView(text("Connect a tablet or PC", 22));
+        root.addView(text("Pair a tablet or PC", 22));
         root.addView(text("Scan the QR code with your tablet, or type six digits on your PC.", 15));
         root.addView(button("Pair a device", () -> {
             if (!hasRequiredPermissions()) {
@@ -124,15 +110,32 @@ public final class MainActivity extends Activity {
                             updateStatus();
                         }).show()));
 
+        root.addView(button("Stop host", () -> {
+            stopService(new Intent(this, GatewayService.class));
+            handler.postDelayed(this::updateStatus, 300);
+        }));
+
         root.addView(text("Important", 22));
         root.addView(text(
                 "This build controls the cellular dialer but does not relay speech. " +
-                "Use only on a trusted home network or across a private VPN. Never forward the host port publicly. " +
-                "For emergencies, use your phone directly, not this prototype.", 15));
+                "Use only on trusted home Wi-Fi. Do not expose the host port to the internet. " +
+                "Use your phone directly for emergencies.", 13));
         if (hasRequiredPermissions()) {
             try { startForegroundService(new Intent(this, GatewayService.class)); }
             catch (Exception ignored) { }
+        } else {
+            requestPhonePermissions();
         }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == 9 && hasRequiredPermissions()) {
+            try { startForegroundService(new Intent(this, GatewayService.class)); }
+            catch (Exception ignored) { }
+        }
+        updateStatus();
     }
 
     @Override protected void onResume() {
@@ -193,19 +196,14 @@ public final class MainActivity extends Activity {
     private void updateStatus() {
         try {
             JSONObject report = CallController.status(this);
-            StringBuilder sb = new StringBuilder();
-            sb.append("Host: ").append(GatewayService.isRunning() ? "ON" : "OFF");
-            sb.append("\nCall: ").append(report.getString("callState"));
-            sb.append("\nPhone permission: ").append(hasRequiredPermissions() ? "ready" : "not granted");
-            sb.append("\nPaired devices: ").append(PairingManager.get(this).count());
-            sb.append("\nDevice: ").append(report.getString("model"));
-            sb.append("\nAndroid: ").append(report.getString("android"));
-            sb.append("\nCPU: ").append(report.getString("abi"));
-            sb.append("\nTelephony audio device visible: ")
-                    .append(report.getBoolean("telephonyDeviceVisible") ? "yes (not proof of bridging)" : "no");
-            sb.append("\n\nOpen in browser (on same trusted network or private VPN):");
-            sb.append(networkAddresses());
-            status.setText(sb.toString());
+            if (permissionsButton != null) permissionsButton.setVisibility(
+                    hasRequiredPermissions() ? View.GONE : View.VISIBLE);
+            String link = preferredUrl();
+            status.setText("Host: " + (GatewayService.isRunning() ? "Ready" : "Off")
+                    + "    Call: " + report.getString("callState")
+                    + "\nConnected devices: " + PairingManager.get(this).count()
+                    + "\n\nOpen on your PC: "
+                    + (link == null ? "Connect the MP01 to Wi-Fi" : link));
             String code = PairingManager.get(this).current();
             String url = preferredUrl();
             if (code == null || url == null) {
@@ -261,25 +259,4 @@ public final class MainActivity extends Activity {
         return bitmap;
     }
 
-    private String networkAddresses() {
-        StringBuilder addresses = new StringBuilder();
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces.hasMoreElements()) {
-                NetworkInterface net = interfaces.nextElement();
-                if (!net.isUp() || net.isLoopback()) continue;
-                Enumeration<InetAddress> ips = net.getInetAddresses();
-                while (ips.hasMoreElements()) {
-                    InetAddress address = ips.nextElement();
-                    if (!(address instanceof Inet4Address) || address.isLinkLocalAddress()
-                            || address.isLoopbackAddress()) continue;
-                    addresses.append("\nhttp://").append(address.getHostAddress())
-                            .append(":").append(Config.PORT);
-                }
-            }
-        } catch (Exception ignored) {
-            // Some vendor ROMs do not expose all interfaces.
-        }
-        return addresses.length() == 0 ? "\nNo network address detected" : addresses.toString();
-    }
 }
