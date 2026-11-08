@@ -6,7 +6,7 @@ PhnLnk is an Android host and companion project for using your existing phone nu
 
 ## Interface update
 
-The v0.7 native interface separates main-phone setup from companion calling. The companion now has a prominent keypad, a distinct live call-status panel, contacts, favorites, recent requests, and collapsible connection settings. The main phone has a high-contrast pairing and connection dashboard. These are usability improvements; **two-way voice audio on the companion is still unavailable**.
+The v0.7 native interface separates main-phone setup from companion calling. The companion now has a prominent keypad, a distinct live call-status panel, contacts, favorites, recent requests, and collapsible connection settings. The main phone has a high-contrast pairing and connection dashboard. These are usability improvements; **two-way audio has an experimental implementation in v0.9.1, but is not verified on the MP01**.
 
 The user is open to considering the default Phone app role only if it truly enables a complete calling experience. Android's public default-dialer APIs do not provide cellular call audio capture or injection, so PhnLnk does not ask for that role just to access a prettier call screen.
 
@@ -18,13 +18,13 @@ If automatic port discovery fails, open Android **Wireless Debugging** and copy 
 
 If Android no longer lists PhnLnk under Paired devices, use **Pair again if Android forgot this app**. If Wireless Debugging turned off, Android requires you to turn it back on. **No debug authorization or cellular audio is bypassed.**
 
-Even if the local helper reports ready, two-way cellular audio on the second Android device is not yet available.
+Even if the helper reports ready, actual audio on the second device must be confirmed with a live cellular call. v0.9.1 includes an experimental bidirectional voice bridge.
 
 ### "Connection failed: Stream closed" (v0.8.1)
 
 This error is documented upstream in the exact ADB library PhnLnk uses: [libadb issue #34](https://github.com/MuntashirAkon/libadb-android/issues/34). PhnLnk v0.8.2 replaces short-lived ADB shell commands with a persistent shell and a single fresh-connection retry. Update over the previous permanently signed 0.8.1 APK without uninstalling. Keep the existing Android debugging pairing. Retry audio setup and report the precise new stage if it fails. The fix is compiled but is not yet validated on the MP01.
 
-## Experimental encrypted two-way voice (v0.9.0)
+## Experimental encrypted two-way voice (v0.9.1)
 
 PhnLnk now contains an end-to-end encrypted media transport and an opt-in cellular audio bridge. **The MP01's actual cellular capture and injection are not verified.** Some Android ROMs provide silence even after the audio service initializes successfully. The app must not be described as a proven cellular voice solution until a live caller hears the other person in both directions.
 
@@ -55,7 +55,7 @@ On the paired companion Android phone:
 
 ## What does not work yet
 
-**PhnLnk does not carry cellular call audio to your secondary Android device.** A normal Android app cannot capture and inject both sides of a carrier voice call through Android's public APIs. Merely becoming the default Phone app does not grant call audio access. The user still rejects Shizuku, root, extra hardware, number porting, and carrier switching. They have explicitly permitted an optional guided one-time Wireless Debugging pairing to test audio access; it does not make remote voice work.
+**PhnLnk now implements encrypted cellular-audio transport, but it has not been verified on the MP01 and may still carry silence.** A normal Android app cannot capture and inject both sides of a carrier voice call through Android's public APIs. Merely becoming the default Phone app does not grant call audio access. The user still rejects Shizuku, root, extra hardware, number porting, and carrier switching. They have explicitly permitted an optional guided one-time Wireless Debugging pairing to test audio access; it provides the shell-level access needed to attempt remote voice, but does not guarantee a working audio route.
 
 PhnLnk does not ask you to become the default Phone app or enable debugging during ordinary call-control setup. **v0.8 adds an optional Guided audio setup** on the main phone, with one-time Android-approved Wireless Debugging pairing, automatic retry when debugging remains available, visible connection status, a stop control, and consent-gated live-call tests.
 
@@ -72,7 +72,7 @@ See [app-only audio research](docs/APP_ONLY_AUDIO_PLAN.md) | [complete number-sh
 1. Install the APK from a PhnLnk [GitHub Release](https://github.com/richbeatty/PhnLnk/releases) on the host and secondary Android devices.
 2. On the main phone choose **This phone has my SIM**. On the companion choose **Connect to my other phone**.
 3. On the host tap **Pair a device**, then use the displayed QR code or six-digit pairing code on the companion.
-4. The companion remembers the pairing. Calls are controlled on the main phone, but audio stays on that phone.
+4. The companion remembers the pairing. Calls are controlled through the main phone. A new experimental voice option may carry audio to the companion if both host audio directions work.
 
 Releases before v0.6.1 are experimental and have not been fully validated on the intended phone. Do not assume an old APK is safe or a finished audio solution.
 

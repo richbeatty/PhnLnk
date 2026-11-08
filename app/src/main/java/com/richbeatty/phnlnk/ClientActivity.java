@@ -415,7 +415,7 @@ public final class ClientActivity extends Activity {
         dialCard.addView(dial);
         target.addView(dialCard);
         target.addView(PhoneUi.label(this,
-                "Calls use the SIM in your main phone. Voice audio does not play on this device yet.",
+                "Calls still use your main phone's SIM. Tap Start voice during a call to try encrypted companion audio. Phone compatibility is not yet verified.",
                 12,PhoneUi.MUTED,false),PhoneUi.margins(this,11,0));
     }
 
@@ -610,10 +610,12 @@ public final class ClientActivity extends Activity {
                             "active".equals(call) ? "  |  On a call" : "  |  " + call));
                     connection.setTextColor(PhoneUi.FOREST);
                     if(callCaption!=null)callCaption.setText("ringing".equals(call)
-                            ? "Incoming call on your main phone."
+                            ? "Incoming call. Answer, then tap Start voice to use this device."
                             : "active".equals(call)
-                            ? "Call active. Audio remains on your main phone."
-                            : "Ready to place a call. Audio stays on your main phone.");
+                            ? (VoiceSessionService.active()
+                                ? "Encrypted audio connected. Check that both people can hear each other."
+                                : "Call active. Tap Start voice to try remote audio.")
+                            : "Ready to place a cellular call using the main phone.");
                     if(callControls!=null)callControls.setVisibility(
                             "ringing".equals(call)||"active".equals(call)?View.VISIBLE:View.GONE);
                     if (answer != null) answer.setEnabled("ringing".equals(call));

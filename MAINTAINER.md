@@ -55,6 +55,10 @@ PhnLnk's 0.8.1 version opened an independent `shell:` stream for each helper set
 
 **Do not reintroduce short-lived ADB shell streams** until the underlying dependency is fixed and verified on MP01. Do not claim this transport change proves cellular audio injection, capture, or internet voice streaming. The user may need to keep Wireless Debugging enabled to reconnect.
 
+## v0.9.1 interface and documentation correction
+
+The original host and companion UI had older text claiming voice audio necessarily stayed on the main phone. Since v0.9.0 introduced an experimental encrypted PCM bridge, v0.9.1 updates the UI and README to explain the attempted feature **without** claiming the MP01 has passed a two-way speech test. Both direction tests, screen-off persistence, and remote VPN operation are still open acceptance gates.
+
 ## v0.9.0 technical voice transport, November 7, 2026
 
 The user requested implementation of the full audio path rather than further isolated audio tests. Source now includes an **experimental** end-to-end 16 kHz bidirectional PCM relay:

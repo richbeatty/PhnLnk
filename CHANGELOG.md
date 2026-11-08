@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.9.1, clear voice setup and limitations
+
+- Clarified the call screen's voice controls and connection states so they match the implemented experimental voice stream.
+- Updated the main phone's audio guidance without claiming device compatibility or making PhnLnk the default Phone app.
+- Reconciled outdated README language with the v0.9 voice transport and private-network constraints.
+- Kept version increments and permanent signing certificate continuity.
+
+
 ## v0.9.0, encrypted two-way voice engineering preview
 
 - Implemented shell-side full-duplex 16 kHz PCM bridge for an active cellular call, activated only after the user has approved local Wireless Debugging pairing.

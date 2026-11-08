@@ -122,7 +122,7 @@ public final class HostActivity extends Activity {
         LinearLayout audioCard=PhoneUi.card(this);
         audioCard.addView(PhoneUi.label(this,"Optional audio access",20,PhoneUi.INK,true));
         audioCard.addView(PhoneUi.label(this,
-                "Pair once with Android Wireless Debugging and let PhnLnk retry automatically. This is an experimental compatibility test, not working remote voice audio.",
+                "Pair once with Android Wireless Debugging. The audio helper can then attempt real encrypted companion voice, but firmware support still requires a live call test.",
                 13,PhoneUi.MUTED,false),PhoneUi.margins(this,9,13));
         audioCard.addView(secondary("Guided audio setup",()->
                 startActivity(new Intent(this,HostAudioActivity.class))));
@@ -159,7 +159,7 @@ public final class HostActivity extends Activity {
         root.addView(settings,PhoneUi.margins(this,13,0));
 
         root.addView(PhoneUi.label(this,
-                "Calls can be controlled from another device on trusted private Wi-Fi. Audio still stays on this phone. Keep your normal Phone app for emergency calls.",
+                "PhnLnk can control calls and attempt encrypted companion voice over a trusted private network. Audio compatibility is unverified on this phone. Keep your normal Phone app for emergency calls.",
                 12,PhoneUi.MUTED,false),PhoneUi.margins(this,13,0));
         if (hasRequiredPermissions()) {
             if (getSharedPreferences("mode", MODE_PRIVATE).getBoolean("hosting_enabled", true)) {
