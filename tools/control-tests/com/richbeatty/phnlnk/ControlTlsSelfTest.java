@@ -1,6 +1,7 @@
 package com.richbeatty.phnlnk;
 
 import java.io.InputStream;
+import java.net.SocketException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -76,6 +77,10 @@ public final class ControlTlsSelfTest {
         }, port -> {
             try (SSLSocket socket = connect(ControlTls.pinnedContext(pin), port)) {
                 socket.startHandshake();
+                String requiredProtocol = System.getProperty("jdk.tls.client.protocols");
+                if (requiredProtocol != null)
+                    check(requiredProtocol.equals(socket.getSession().getProtocol()),
+                            "Requested TLS version was not negotiated");
                 check(ControlTls.matches(pin, socket.getSession()), "Hostname pin verifier rejected identity");
                 check(!ControlTls.matches("0".repeat(64), socket.getSession()), "Wrong session pin accepted");
                 socket.getOutputStream().write(42); socket.getOutputStream().flush();
@@ -86,7 +91,11 @@ public final class ControlTlsSelfTest {
             try {
                 socket.startHandshake();
                 check(socket.getInputStream().read() == -1, "Application data reached an impostor");
-            } catch (javax.net.ssl.SSLException expected) { }
+            } catch (javax.net.ssl.SSLException | SocketException expected) {
+                // TLS 1.3 may still be writing the server Finished when the
+                // rejecting client closes. A TCP broken pipe/reset is valid
+                // here; the client must independently reject the certificate.
+            }
         }, port -> {
             try (SSLSocket socket = connect(ControlTls.pinnedContext(pin), port)) {
                 try { socket.startHandshake(); throw new AssertionError("Wrong certificate accepted"); }
@@ -100,7 +109,7 @@ public final class ControlTlsSelfTest {
                 "Discovery returned wrong candidate"));
         exchange("ordinary trust still rejects self-signed identity", first, socket -> {
             try { socket.startHandshake(); }
-            catch (javax.net.ssl.SSLException expected) { }
+            catch (javax.net.ssl.SSLException | SocketException expected) { }
         }, port -> {
             try (SSLSocket socket = connect(SSLContext.getDefault(), port)) {
                 try { socket.startHandshake(); throw new AssertionError("Global trust was weakened"); }

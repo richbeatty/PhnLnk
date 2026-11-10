@@ -13,4 +13,8 @@ done
 javac --release 17 -d "$OUT" \
   "$ROOT/app/src/main/java/com/richbeatty/phnlnk/ControlTls.java" \
   "$ROOT/tools/control-tests/com/richbeatty/phnlnk/ControlTlsSelfTest.java"
-java -cp "$OUT" com.richbeatty.phnlnk.ControlTlsSelfTest "$OUT/first.p12" "$OUT/second.p12"
+for protocol in TLSv1.2 TLSv1.3; do
+  echo "Testing pinned control with $protocol"
+  java -Djdk.tls.client.protocols="$protocol" -cp "$OUT" \
+    com.richbeatty.phnlnk.ControlTlsSelfTest "$OUT/first.p12" "$OUT/second.p12"
+done

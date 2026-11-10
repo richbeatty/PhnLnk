@@ -1,10 +1,48 @@
 """Exercise the actual offline inspector with minimal synthetic policy declarations."""
 import unittest
+import json
+from pathlib import Path
 import xml.etree.ElementTree as ET
-from inspect_audio_policy import inspect
+from inspect_audio_policy import inspect, declared_format, native_comparison
 
 
 class PolicyTests(unittest.TestCase):
+    def test_profiles_must_not_be_combined_into_invented_native_format(self):
+        port = {'profiles': [
+            {'format': 'AUDIO_FORMAT_PCM_16_BIT', 'samplingRates': '48000',
+             'channelMasks': 'AUDIO_CHANNEL_OUT_STEREO'},
+            {'format': 'AUDIO_FORMAT_PCM_16_BIT', 'samplingRates': '16000',
+             'channelMasks': 'AUDIO_CHANNEL_OUT_MONO'}]}
+        self.assertEqual(declared_format(port, 48000, 'AUDIO_CHANNEL_OUT_MONO'), 'NOT_DECLARED')
+        self.assertEqual(declared_format(port, 48000, 'AUDIO_CHANNEL_OUT_STEREO'), 'EXACT_DECLARATION')
+
+    def test_missing_or_dynamic_profiles_are_unknown(self):
+        for port in ({}, {'profiles': [{}]}, {'profiles': [{'samplingRates': 'dynamic'}]}):
+            self.assertEqual(declared_format(port, 48000, 'AUDIO_CHANNEL_OUT_STEREO'), 'UNKNOWN')
+        port = {'profiles': [{'samplingRates': 'dynamic', 'channelMasks': 'AUDIO_CHANNEL_OUT_MONO'}]}
+        self.assertEqual(declared_format(port, 48000, 'AUDIO_CHANNEL_OUT_STEREO'), 'NOT_DECLARED')
+
+    def test_published_mp01_evidence_preserves_variant_difference(self):
+        evidence = json.loads((Path(__file__).resolve().parent.parent /
+                              'docs/research/MP01_POLICY_SUMMARY.json').read_text())
+        platform, common = [native_comparison(p['analysis']['modules'])['routes']
+                            for p in evidence['policies']]
+        reviewed = json.loads((Path(__file__).resolve().parent.parent /
+                               'docs/research/MP01_NATIVE_FORMAT_REVIEW.json').read_text())
+        for original, current in zip(evidence['policies'], reviewed['policies'], strict=True):
+            self.assertEqual(original['source'], current['source'])
+            self.assertEqual(original['sha256'], current['sha256'])
+            self.assertEqual(native_comparison(original['analysis']['modules']),
+                             current['native_format_comparison'])
+        uplink = [row for row in platform if row['direction'] == 'UPLINK']
+        self.assertEqual(len(uplink), 1)
+        self.assertEqual(uplink[0]['mix'], 'incall_music_uplink')
+        self.assertEqual(uplink[0]['pcm16_16000_mono'], 'NOT_DECLARED')
+        self.assertEqual(uplink[0]['pcm16_48000_stereo'], 'EXACT_DECLARATION')
+        self.assertFalse(any(row['direction'] == 'UPLINK' for row in common))
+        self.assertTrue(any(row['direction'] == 'DOWNLINK' and
+                            row['pcm16_16000_mono'] == 'EXACT_DECLARATION' for row in platform))
+
     def test_empty_is_not_support(self):
         result = inspect(ET.fromstring('<audioPolicyConfiguration/>'))
         self.assertEqual(result['modules'], [])

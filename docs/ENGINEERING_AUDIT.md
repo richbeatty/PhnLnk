@@ -1,5 +1,7 @@
 # Engineering audit and delivery status, November 8, 2026
 
+Follow-up from current main `198710f`: [November 10 engineering status](ENGINEERING_STATUS_2026-11-10.md). The original 0.9.3 record below is retained as history. The follow-up adds offline native-format analysis and fixes a reproduced TLS negative-test race, with no Android runtime changes or claimed MP01 speech result.
+
 Source baseline: `01822cc` (0.9.2). Development changes: 0.9.3, versionCode 17. Package remains `com.richbeatty.phnlnk`. No permanent signing key was accessed or replaced. No GitHub release or installable update was published for this investigation.
 
 ## Prioritized findings

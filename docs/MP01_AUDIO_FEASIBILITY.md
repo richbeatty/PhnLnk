@@ -2,6 +2,8 @@
 
 **Verdict: unresolved on the installed MP01 firmware.** There is a credible shell-authorized research path, but no demonstrated two-way speech on this phone. Neither universal impossibility nor compatibility follows from the evidence. No new install or speculative APK test is requested.
 
+November 10 follow-up: [resumed engineering status](ENGINEERING_STATUS_2026-11-10.md) traces Android 14 explicit telephony routing and native format selection. Both pinned public policies were downloaded again and match the prior hashes. [Native comparison evidence](research/MP01_NATIVE_FORMAT_REVIEW.json) distinguishes mix declarations from HAL/device formats; it is not installed-firmware evidence.
+
 ## What is established
 
 The owner reported outgoing call control working, the shell helper answering PING, an original VOICE_CALL measurement of `SILENT_OR_MUTED`, and a later unspecified EOFException. No trace, installed vendor policy, build fingerprint, or independently reproducible MP01 speech test is available. The execution environment has no connected Android device. The Android app builds and transport tests are separate evidence.

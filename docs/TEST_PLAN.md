@@ -24,7 +24,9 @@ The user does not want another speculative install cycle. The objective is to ca
 
 `bash tools/test_control_tls.sh` compiles actual `ControlTls.java` and generates ephemeral test EC certificates, unrelated to release signing. Five cases cover strict pin validation, valid TLS application bytes and session identity verification, changed-host rejection before request, discovery without application payload, and unchanged default CA trust.
 
-`python3 tools/test_audio_policy.py` has four tests of the offline policy inspector, including device aliases, missing playback routes, native profiles and unresolved includes. It never claims audibility.
+`python3 tools/test_audio_policy.py` has seven tests of the offline policy inspector, including device aliases, missing playback routes, native profiles and unresolved includes. Added cases prevent combining fields from different profiles, preserve unknown/dynamic declarations and replay the recorded MP01 platform/common policy differences. It never claims audibility.
+
+The TLS certificate-rejection cases permit either a TLS alert or server-side TCP SocketException: TLS 1.3 can still be writing Finished when the correctly rejecting client closes. Client-side SSLHandshakeException remains required. A received application byte still fails the changed-identity test. These expected server failures are not permitted in positive traffic or discovery tests.
 
 These tests are in CI before Android compilation. No tests claim a modem, microphone, AndroidKeyStore or physical MP01 was exercised.
 

@@ -2,6 +2,8 @@
 
 Last reviewed: 2026-11-08. This is the source of truth for human and coding-agent maintainers.
 
+Resumed review: November 10, 2026, from main `198710f`. See [current engineering status](docs/ENGINEERING_STATUS_2026-11-10.md). Development remains 0.9.3/code 17; this investigation changes offline analysis and a test-harness race, with no Android runtime or signing changes. Re-fetched public policies match the prior recorded hashes. Mix-port declarations support 16/48 kHz mono downlink and 44.1/48 kHz stereo incall playback; Telephony Tx declares mono. This does not establish installed policy, conversion, shell grants or speech. No speculative owner APK test is requested.
+
 ## Product goal
 
 A Beeper-simple Android companion that makes and answers **real cellular calls**, using the user's existing AT&T number on their existing host phone, with speech through a second existing Android phone or tablet while the host stays at home.

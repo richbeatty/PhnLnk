@@ -8,6 +8,7 @@ This is the documentation home for PhnLnk. Read the implementation status before
 
 | Documentation | What to read it for |
 | --- | --- |
+| [Resumed engineering status](ENGINEERING_STATUS_2026-11-10.md) | Current source audit, native-format findings, reproduced test failure and remaining blockers |
 | [User setup](SETUP_GUIDE.md) | Host and companion setup, pairing, call control, optional audio |
 | [Architecture](ARCHITECTURE.md) | Components, lifecycle, threads, topology and trust boundaries |
 | [Voice protocol](VOICE_PROTOCOL.md) | Byte-level handshake, crypto, audio framing and failure rules |

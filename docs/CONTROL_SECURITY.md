@@ -34,6 +34,8 @@ These quotas limit resource use, but do not provide internet-scale abuse protect
 
 `bash tools/test_control_tls.sh` compiles production `ControlTls.java`, generates two ephemeral test certificates and uses actual loopback TLS sockets. It checks strict pins, valid application traffic, changed identity rejection, payload-free discovery, session identity comparison and unchanged default CA trust. No release signing material is used.
 
+The suite runs with both TLS 1.2 and TLS 1.3 clients. Certificate-rejection server cases allow either TLS alerts or TCP SocketException when the client closes during the handshake; client rejection is still mandatory and application bytes still fail the test. Positive traffic and discovery do not ignore socket errors. See [resumed engineering status](ENGINEERING_STATUS_2026-11-10.md).
+
 Android compilation verifies integration types. The JVM tests do **not** execute AndroidKeyStore, on-device update persistence, QR scanning, browser trust UI or Android background services. Those remain device acceptance gates. Never describe JVM TLS tests as an on-device security audit.
 
 For threat model and credential handling, see [Security](SECURITY.md). For away-from-home use, see [Phone Link and remote networks](PHONE_LINK_AND_REMOTE_NETWORKS.md).

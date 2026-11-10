@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased, resumed MP01 investigation (November 10, 2026)
+
+- Continued from main `198710f` without changing Android runtime code, version 0.9.3/code 17, pairing storage, TLS pins, V3 helper, media protocol or signing configuration. No APK distribution.
+- Re-fetched both pinned manufacturer policies and verified their SHA-256 hashes against the prior audit. Added a native-format comparison to the offline inspector and three regression cases, including replay of the preserved MP01 policy evidence. Missing/dynamic profiles remain unknown; distinct profiles cannot be combined into invented support.
+- Rechecked Android 14 call-mode, explicit Telephony Tx selection, INCALL_MUSIC and permission enforcement. Documented the distinction between mix-port and device-port formats and why neither 16 kHz failure nor 48 kHz success follows from policy alone.
+- Repaired a reproduced TLS negative-test race: correct client certificate rejection may cause server-side SocketException during TLS 1.3 Finished. Client rejection and application-data assertions remain mandatory; production trust code is unchanged.
+- See `docs/ENGINEERING_STATUS_2026-11-10.md` for results and remaining evidence gates.
+
 ## v0.9.3, verified control identity, helper bootstrap and production relay tests
 
 - Replaced plaintext control/pairing with HTTPS on 47321, a persistent AndroidKeyStore host certificate, QR/full-fingerprint verification and fail-closed pin checks. Saved Android tokens migrate explicitly without uninstalling or new ADB pairing; both apps must update. Browser HTTPS trust/origin changes are documented.
