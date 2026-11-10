@@ -1,5 +1,13 @@
 # HTTPS identity, pairing and migration
 
+## 0.9.5 AndroidKeyStore repair and release gate
+
+Android Conscrypt delegates opaque EC TLS signatures through NONEwithECDSA after hashing the transcript. The original v1 host key authorized only SHA256, which does not authorize this raw operation. Version 0.9.5 creates new host keys under phnlnk_control_tls_v2 with DIGEST_NONE and SHA256. NONE here means signing an already-computed TLS digest; it does not disable TLS hashing, encryption or peer verification.
+
+Existing v1 identities are not silently replaced. Listener startup detects missing raw-sign authorization and reports HOST_TLS_KEY_NEEDS_REPAIR. The host owner explicitly confirms Repair encrypted connection. Repair retains v1, creates/selects v2 and keeps all bearer tokens/hashes and separate ADB identity. The key manager serves only the selected alias. Each existing companion must explicitly compare and trust the new host fingerprint; old pins continue to fail closed until then. Repeated repair reuses v2 rather than rotating it. The APK signing identity is independent and unchanged.
+
+CI now requires seven tests of real Android 14 KeyStore, Conscrypt, HttpBridge, HttpsURLConnection, legacy-key failure, explicit repair and pairing persistence before any signed publication. An emulator test is not MP01 hardware, Wireless Debugging or speech acceptance. See [reliability reset](RELIABILITY_RESET_2026-11-10.md). The v1 description below records the original 0.9.3 design.
+
 Version 0.9.3 replaces plaintext HTTP on TCP 47321 with HTTPS on the **same port**. The JSON endpoints and saved bearer-token format remain unchanged. There is no plaintext fallback or redirect listener. Media remains the independent authenticated AES-GCM protocol on TCP 47322. This secures the implemented control transport; it does not establish MP01 audio or public-service readiness.
 
 ## Host identity

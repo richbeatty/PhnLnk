@@ -2,12 +2,13 @@
 
 This is the documentation home for PhnLnk. Read the implementation status before claiming a feature works on a particular phone.
 
-**Current development version:** 0.9.4, experimental cellular voice transport. **Actual two-way cellular speech on the MP01 is not verified.** Compiling Android, connecting ADB, obtaining shell UID 2000, opening an audio route, and passing the encrypted voice protocol tests do not prove that the far-end person is heard.
+**Current development version:** 0.9.5, experimental cellular voice transport. **Actual two-way cellular speech on the MP01 is not verified.** Compiling Android, connecting ADB, obtaining shell UID 2000, opening an audio route, and passing the encrypted voice protocol tests do not prove that the far-end person is heard.
 
 ## Guide to the repository
 
 | Documentation | What to read it for |
 | --- | --- |
+| [Reliability reset](RELIABILITY_RESET_2026-11-10.md) | Android TLS defect, explicit repair, self-ADB isolation and new runtime release gate |
 | [0.9.4 test candidate](TEST_BUILD_0.9.4.md) | Owner-requested APK, native uplink option, update and test instructions |
 | [Resumed engineering status](ENGINEERING_STATUS_2026-11-10.md) | Current source audit, native-format findings, reproduced test failure and remaining blockers |
 | [User setup](SETUP_GUIDE.md) | Host and companion setup, pairing, call control, optional audio |

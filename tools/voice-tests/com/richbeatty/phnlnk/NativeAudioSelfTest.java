@@ -21,7 +21,7 @@ public final class NativeAudioSelfTest {
         }
         return 2 * Math.hypot(real, imaginary) / (frames - start);
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         short[] frame = new NativeUplinkPcm().convert(new short[320]);
         check(frame.length == 1920, "20 ms must be 960 stereo frames, not wire bytes");
         for (short value : frame) check(value == 0, "Silence changed");
@@ -93,7 +93,21 @@ public final class NativeAudioSelfTest {
         for (String invalid : new String[]{null, "", "ERROR:denied", "READY:V5:idle", "READY:V4:idle"})
             check(!AudioHelperVersion.isObsolete(invalid), "Unexpected helper stopped");
         pass("V1/V2/V3 replacement and V4 reuse preserve upgrade version boundaries");
-        check(passed == 8, "Missing native audio tests");
+        java.net.InetAddress own=java.net.InetAddress.getByName("192.168.5.12");
+        java.util.List<java.net.InetAddress> addresses=java.util.List.of(own);
+        check(LocalAdbEndpoint.isLocal(own,addresses),"Own IPv4 rejected");
+        check(!LocalAdbEndpoint.isLocal(java.net.InetAddress.getByName("192.168.5.13"),addresses),"Another phone's ADB port accepted");
+        check(!LocalAdbEndpoint.isLocal(null,addresses),"Unresolved peer accepted");
+        check(LocalAdbEndpoint.isLocal(java.net.InetAddress.getByName("127.0.0.1"),java.util.List.of()),"Loopback rejected");
+        pass("self-ADB accepts local/loopback addresses and rejects foreign LAN services");
+        byte[] v6=java.net.InetAddress.getByName("fe80::1234").getAddress();
+        check(LocalAdbEndpoint.isLocal(java.net.Inet6Address.getByAddress(null,v6,7),
+                java.util.List.of(java.net.Inet6Address.getByAddress(null,v6,3))),"IPv6 scope mismatch rejected own host");
+        byte[] mapped=new byte[16];mapped[10]=(byte)255;mapped[11]=(byte)255;
+        System.arraycopy(own.getAddress(),0,mapped,12,4);
+        check(LocalAdbEndpoint.isLocal(java.net.Inet6Address.getByAddress(null,mapped,0),addresses),"Mapped IPv4 rejected");
+        pass("self-ADB handles scoped IPv6 and IPv4-mapped advertisements");
+        check(passed == 10, "Missing native audio/discovery tests");
         System.out.println("All " + passed + " native audio tests passed.");
     }
 }

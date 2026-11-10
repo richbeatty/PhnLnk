@@ -1,5 +1,7 @@
 # Validation and acceptance plan
 
+0.9.5 changes the release gate: after compilation, CI must run tools/test_android_runtime.sh on an isolated API 34 emulator before signing or publication. Seven cases exercise actual AndroidKeyStore/Conscrypt, pre-certificate legacy TLS failure, no silent rotation, explicit identity repair with token/ADB preference persistence, active-alias selection, explicit pin migration and production HTTPS pairing/status. The custom instrumentation APK is debug-only and its destructive fixtures must never target an owner's installation. Two added local-address discovery cases bring JVM/policy cases to 53; Android adds seven separate runtime cases. See [reliability reset](RELIABILITY_RESET_2026-11-10.md).
+
 The user does not want another speculative install cycle. The objective is to catch every software-detectable problem before recommending a device test, then be explicit that hardware behavior cannot be proven without a device test.
 
 ## Test levels

@@ -75,7 +75,7 @@ public final class AudioPairService extends Service {
                 } catch (Exception error) {
                     Log.w("PhnLnkAudio", "Pairing failed", error);
                     AudioAccessState.set(this,AudioAccessState.ERROR,
-                            "Pairing failed. Check the six-digit code and try again.");
+                            "Pairing failed: " + safe(error.getMessage()));
                     notifyStatus("Pairing failed: " + safe(error.getMessage()), true);
                 }
             });

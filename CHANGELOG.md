@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.5, Android runtime reliability candidate
+
+- Reworked validation after the owner reported pre-fingerprint companion pairing closure and repeated Wireless Debugging failures. Pause new audio backends; require an actual Android 14 runtime gate before signing/publication.
+- Corrected AndroidKeyStore EC TLS authorization: Conscrypt's opaque-key path needs raw NONEwithECDSA signing. New identities permit DIGEST_NONE plus SHA256. Existing v1 keys are retained until explicit host-side Repair encrypted connection confirmation creates v2; saved tokens and ADB identity are retained, and companions must explicitly verify the new fingerprint. The listener refuses an incompatible legacy key instead of reporting Ready.
+- Select only the active certificate/key alias, even with the legacy alias retained. Discovery errors now identify HOST_TLS_DISCOVERY before any pairing code is sent.
+- Added seven real AndroidKeyStore/Conscrypt/HTTPS integration fixtures, ahead of publishing in CI. JVM tests now exercise the selected-alias key manager. Android execution is distinct from JVM cryptography and MP01 hardware acceptance.
+- Self-ADB mDNS rejects unrelated LAN device ports, comparing local address bytes with scoped-IPv6/mapped-IPv4 handling. Added two regression cases. Pairing setup preserves ADB_PAIR_HANDSHAKE failure details instead of discarding them.
+- Version 0.9.5/code 19; permanent APK signing identity and all existing audio/protocol improvements retained. See docs/RELIABILITY_RESET_2026-11-10.md. Target-device speech and durable debugging remain unverified.
+
 ## v0.9.4, explicitly requested audio test candidate
 
 - Owner explicitly requested a new APK for testing on November 10, superseding the earlier instruction against another speculative install. Cellular speech remains unverified; this is a test candidate.

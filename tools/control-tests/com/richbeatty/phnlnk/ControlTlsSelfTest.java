@@ -34,7 +34,7 @@ public final class ControlTlsSelfTest {
 
     private static void exchange(String name, KeyStore identity, ServerCase server, ClientCase client)
             throws Exception {
-        try (SSLServerSocket listener = (SSLServerSocket)ControlTls.serverContext(identity, PASSWORD)
+        try (SSLServerSocket listener = (SSLServerSocket)ControlTls.serverContext(identity, PASSWORD, "host")
                 .getServerSocketFactory().createServerSocket(0, 4, java.net.InetAddress.getLoopbackAddress())) {
             listener.setSoTimeout(4000);
             ExecutorService worker = Executors.newSingleThreadExecutor();

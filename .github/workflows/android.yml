@@ -53,6 +53,25 @@ jobs:
           unzip -t app/build/outputs/apk/debug/app-debug.apk | tail -n 1
           unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -F 'assets/phnlnk-probe.jar'
 
+      - name: Compile Android runtime integration tests
+        run: gradle --no-daemon :app:assembleDebugAndroidTest
+
+      - name: Enable emulator KVM access
+        run: |
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+
+      - name: Verify real Android 14 keystore, TLS and pairing
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: aosp_atd
+          arch: x86_64
+          disable-linux-hw-accel: false
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: bash tools/test_android_runtime.sh
+
       - name: Build unsigned release candidate for permanent signing
         run: gradle --no-daemon :app:assembleRelease
 

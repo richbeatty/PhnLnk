@@ -1,5 +1,9 @@
 # PhnLnk maintainer contract
 
+## 0.9.5 reliability reset
+
+The owner reports Connect phone closes before fingerprint verification with both devices at 0.9.4 and Host: Ready, plus repeated Wireless Debugging failure. The owner asked to rework methodology. [Reliability reset](docs/RELIABILITY_RESET_2026-11-10.md) is the current plan: prove actual AndroidKeyStore/Conscrypt/HTTPS pairing before more audio experiments, isolate self-ADB failures, then obtain MP01 speech evidence before remote-media work. 0.9.5/code 19 adds explicit host TLS repair, preserving old identity until confirmation and retaining pairing tokens/ADB identity; the companion must verify the new fingerprint. No silent trust migration, reinstall, new signing key or excluded privilege is authorized. A new Android 14 integration gate must pass before distribution. Existing 0.9.4 and earlier notes below are history.
+
 ## Current owner-requested test candidate: 0.9.4 / code 18
 
 On November 10 the owner explicitly said, "I want a new apk to test. Keep working." This supersedes the earlier no-speculative-APK request for this test candidate; it does not establish MP01 speech or authorize replacing the permanent signing key. V4 retains the V3 bootstrap and EOF fixes, replaces older authenticated helper versions, and adds a separately selected `TELEPHONY_48K` uplink with tested 16→48 kHz stereo conversion. AUTO and downlink behavior remain unchanged. Follow [0.9.4 test instructions](docs/TEST_BUILD_0.9.4.md). Historical 0.9.3 findings below remain evidence, not a description of the new native option.

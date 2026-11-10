@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 18,
-        "The versionCode must be at least 18 and increase on subsequent releases")
-require("versionName '0.9.4'" in gradle,
+require(match is not None and int(match.group(1)) >= 19,
+        "The versionCode must be at least 19 and increase on subsequent releases")
+require("versionName '0.9.5'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.

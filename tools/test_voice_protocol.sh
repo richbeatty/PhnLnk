@@ -15,6 +15,7 @@ javac --release 17 -d "$OUT" \
   "$ROOT/app/src/main/java/com/richbeatty/phnlnk/SocketDeadline.java" \
   "$ROOT/app/src/main/java/com/richbeatty/phnlnk/VoiceRelayServer.java" \
   "$ROOT/app/src/main/java/com/richbeatty/phnlnk/AudioHelperVersion.java" \
+  "$ROOT/app/src/main/java/com/richbeatty/phnlnk/LocalAdbEndpoint.java" \
   "$ROOT/shellprobe/src/com/richbeatty/phnlnk/shell/NativeUplinkPcm.java" \
   "$ROOT/tools/voice-tests/com/richbeatty/phnlnk/NativeAudioSelfTest.java" \
   "$ROOT/tools/voice-tests/com/richbeatty/phnlnk/VoiceProtocolSelfTest.java" \
