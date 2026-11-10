@@ -40,6 +40,8 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
             Context context=getTargetContext();
             check((context.getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0,
                     "Requires disposable debug installation");
+            check("ranchu".equals(android.os.Build.HARDWARE) || "goldfish".equals(android.os.Build.HARDWARE),
+                    "Refusing destructive fixtures outside an emulator");
             run(context);
             result.putString("stream","PHNLNK_ANDROID_TLS_PASS cases="+passed+"\n");
             finish(Activity.RESULT_OK,result);
@@ -74,7 +76,8 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
 
         ExecutorService worker=Executors.newSingleThreadExecutor();
         SSLContext legacy=ControlTls.serverContext(store,null,OLD);
-        try(SSLServerSocket listener=(SSLServerSocket)legacy.getServerSocketFactory().createServerSocket(0,4,InetAddress.getLoopbackAddress())){
+        try(SSLServerSocket listener=(SSLServerSocket)legacy.getServerSocketFactory().createServerSocket(0,4,InetAddress.getByName("127.0.0.1"))){
+            listener.setSoTimeout(6000);
             Future<?> accepted=worker.submit(()->{
                 try(SSLSocket socket=(SSLSocket)listener.accept()){
                     socket.setSoTimeout(5000);socket.startHandshake();
@@ -82,7 +85,11 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
             });
             boolean closed=false;
             try{ControlTls.discoverUntrustedFingerprint("127.0.0.1",listener.getLocalPort());}
-            catch(Exception expected){closed=true;}
+            catch(Exception expected){
+                check(expected instanceof SSLException || expected.getCause() instanceof SSLException,
+                        "Legacy connection failed before TLS: "+expected.getClass().getSimpleName());
+                closed=true;
+            }
             check(closed,"Legacy Android TLS handshake unexpectedly succeeded");
             accepted.get(7,TimeUnit.SECONDS);
         }finally{worker.shutdownNow();}
