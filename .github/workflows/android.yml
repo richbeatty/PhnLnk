@@ -223,4 +223,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.9.5 PhnLnk-Android.apk SHA256SUMS.txt signing-certificate-sha256.txt --repo richbeatty/PhnLnk --target dfd37715702ef53679321756326712bd8e055fc9 --title 'PhnLnk v0.9.5 signed Android pairing repair' --notes-file RELEASE_NOTES.md --prerelease --latest=false
+          gh release create v0.9.5 PhnLnk-Android.apk SHA256SUMS.txt signing-certificate-sha256.txt --repo richbeatty/PhnLnk --target 7dd1d846720070581345dfb0351e8487299f8842 --title 'PhnLnk v0.9.5 signed Android pairing repair' --notes-file RELEASE_NOTES.md --prerelease --latest=false

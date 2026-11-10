@@ -1,8 +1,10 @@
 PhnLnk 0.9.5 (versionCode 19) — Android pairing reliability repair
 
-Source: dfd37715702ef53679321756326712bd8e055fc9 (PR #3, based on main 198710f).
-Android 14 runtime CI passed: https://github.com/richbeatty/PhnLnk/actions/runs/42855535625
+Source: 7dd1d846720070581345dfb0351e8487299f8842 (PR #3, based on main 198710f).
+Android 14 runtime CI passed: https://github.com/richbeatty/PhnLnk/actions/runs/42859284168
 Android 11/API 30 minimum; targets Android 14/API 34; compiled with API 35.
+
+The signed APK is made from the exact unsigned release artifact produced by that successful CI run.
 
 WHAT CHANGED
 - Fixes a reproduced AndroidKeyStore/Conscrypt incompatibility that closes TLS before certificate discovery: opaque EC TLS signing requires NONEwithECDSA authorization, absent from the legacy host key.
@@ -24,7 +26,9 @@ The Android emulator does NOT prove MP01 cellular speech, hardware-specific beha
 
 No root, Shizuku, extra hardware, SIM/number/carrier change or default Phone role. Stock Phone remains default. Control/pairing stay pinned HTTPS on 47321; media remains authenticated/encrypted on 47322. No public port forwarding, built-in VPN or internet relay. Not an emergency-calling solution.
 
-Methodology and evidence: https://github.com/richbeatty/PhnLnk/blob/dfd37715702ef53679321756326712bd8e055fc9/docs/RELIABILITY_RESET_2026-11-10.md
+Methodology and evidence: https://github.com/richbeatty/PhnLnk/blob/7dd1d846720070581345dfb0351e8487299f8842/docs/RELIABILITY_RESET_2026-11-10.md
 
 Signed locally with the owner's supplied permanent PKCS12. No private key or password is in the repository or release. Public certificate SHA-256:
 eb184833077dac935052e595afd977baeb1a8b55a43d92a21c06a0c26be9f802
+
+OWNER-CONFIRMED ADB LIMIT: Android itself switches Wireless Debugging off. The mDNS repair does not override that policy. Self-ADB is conditional research access and is not a proven foundation for unattended startup/recovery. Establish a durable authorized MP01 audio path, potentially with OEM-supported integration, before promising reliable remote cellular speech.

@@ -51,6 +51,20 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
         }
     }
     private void run(Context context)throws Exception{
+        String host=null;
+        java.util.Enumeration<java.net.NetworkInterface> interfaces=java.net.NetworkInterface.getNetworkInterfaces();
+        while(interfaces.hasMoreElements() && host==null){
+            java.net.NetworkInterface network=interfaces.nextElement();
+            if(!network.isUp() || network.isLoopback())continue;
+            java.util.Enumeration<InetAddress> addresses=network.getInetAddresses();
+            while(addresses.hasMoreElements()){
+                InetAddress address=addresses.nextElement();
+                if(address instanceof java.net.Inet4Address && address.isSiteLocalAddress()){
+                    host=address.getHostAddress();break;
+                }
+            }
+        }
+        check(host!=null,"Emulator has no assigned private IPv4 address");
         KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);
         if(store.containsAlias(OLD))store.deleteEntry(OLD);
         if(store.containsAlias(NEW))store.deleteEntry(NEW);
@@ -98,7 +112,7 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
         PairingManager manager=PairingManager.get(context);
         String token=manager.pair(manager.begin());
         context.getSharedPreferences("phnlnk_companion",Context.MODE_PRIVATE).edit()
-                .putString("host","https://10.0.2.15:47321").putString("token",token).putString("tls_pin",oldPin).commit();
+                .putString("host","https://"+host+":47321").putString("token",token).putString("tls_pin",oldPin).commit();
         context.getSharedPreferences("phnlnk_audio_bootstrap",Context.MODE_PRIVATE).edit().putBoolean("adb_paired",true).commit();
         HostTlsIdentity.repairAfterConfirmation();
         String pin=HostTlsIdentity.fingerprint();
@@ -123,7 +137,7 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
             check(token.equals(context.getSharedPreferences("phnlnk_companion",Context.MODE_PRIVATE).getString("token","")),"Trust migration replaced token");
             pass("Android HttpsURLConnection requires explicit new-pin verification and retains token");
             RemoteClient.forget(context);
-            RemoteClient.pair(context,"10.0.2.15",manager.begin(),pin);
+            RemoteClient.pair(context,host,manager.begin(),pin);
             check(RemoteClient.isPaired(context) && RemoteClient.isTrusted(context),"Real HTTPS pairing failed");
             check(RemoteClient.status(context).has("callState"),"New pairing not authorized");
             pass("production Android HTTPS pairing and authorized status complete");
