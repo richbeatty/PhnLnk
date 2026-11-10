@@ -108,7 +108,7 @@ public final class AudioProbe {
                     command.startsWith("INJECT:")?"INJECT":command;
             switch (operation) {
                 case "PING":
-                    output.writeUTF("READY:V3:shell UID " + Process.myUid()
+                    output.writeUTF("READY:V4:shell UID " + Process.myUid()
                             + (occupied.get() ? ":streaming" : ":idle"));
                     output.flush();
                     break;
@@ -284,16 +284,24 @@ public final class AudioProbe {
 
     private static AudioTrack openUplink(Context context,String backend) throws Exception {
         AudioTrack track;
-        AudioFormat outFormat=new AudioFormat.Builder().setSampleRate(RATE)
+        boolean native48="TELEPHONY_48K".equals(backend);
+        if(native48) {
+            AudioManager manager=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
+            if(manager==null || manager.getMode()!=AudioManager.MODE_IN_CALL)
+                throw new IllegalStateException("Native telephony output needs an active cellular call");
+        }
+        int outputRate=native48?48000:RATE;
+        int outputMask=native48?AudioFormat.CHANNEL_OUT_STEREO:AudioFormat.CHANNEL_OUT_MONO;
+        AudioFormat outFormat=new AudioFormat.Builder().setSampleRate(outputRate)
                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build();
+                .setChannelMask(outputMask).build();
         if("REDIRECT".equals(backend)) {
             AudioManager manager=(AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
             if(manager==null)throw new IllegalStateException("AudioManager unavailable");
             track=(AudioTrack)AudioManager.class.getMethod("getCallUplinkInjectionAudioTrack",
                     AudioFormat.class).invoke(manager,outFormat);
         } else {
-            int min=AudioTrack.getMinBufferSize(RATE,AudioFormat.CHANNEL_OUT_MONO,
+            int min=AudioTrack.getMinBufferSize(outputRate,outputMask,
                     AudioFormat.ENCODING_PCM_16BIT);
             if(min<=0)throw new IllegalStateException("No PCM output buffer");
             AudioTrack.Builder builder=new AudioTrack.Builder()
@@ -302,7 +310,7 @@ public final class AudioProbe {
                             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
                     .setAudioFormat(outFormat)
                     .setTransferMode(AudioTrack.MODE_STREAM)
-                    .setBufferSizeInBytes(Math.max(min*2,FRAME_BYTES*12));
+                    .setBufferSizeInBytes(Math.max(min*2,FRAME_BYTES*12*(native48?6:1)));
             // AudioTrack.Builder.setContext is available on some APIs/vendors.
             try {AudioTrack.Builder.class.getMethod("setContext",Context.class).invoke(builder,context);}
             catch(NoSuchMethodException ignored) {}
@@ -338,6 +346,7 @@ public final class AudioProbe {
                     command.substring("INJECT:".length()):"AUTO";
             String[] modes="REDIRECT".equals(requested)?new String[]{"REDIRECT"}:
                     "TELEPHONY".equals(requested)?new String[]{"TELEPHONY"}:
+                    "TELEPHONY_48K".equals(requested)?new String[]{"TELEPHONY_48K"}:
                     new String[]{"REDIRECT","TELEPHONY"};
             for(String mode:modes) {
                 try {track=openUplink(context,mode);backend=mode;break;}
@@ -346,6 +355,7 @@ public final class AudioProbe {
             if(track==null)return "INJECT_ERROR:"+failed;
             short[] pcm=new short[RATE*TONE_MS/1000];
             for(int i=0;i<pcm.length;i++)pcm[i]=(short)(1600*Math.sin(2*Math.PI*660*i/RATE));
+            if("TELEPHONY_48K".equals(backend))pcm=new NativeUplinkPcm().convert(pcm);
             int written=0;
             while(written<pcm.length) {
                 int n=track.write(pcm,written,pcm.length-written,AudioTrack.WRITE_BLOCKING);
@@ -353,7 +363,7 @@ public final class AudioProbe {
                 written+=n;
             }
             Thread.sleep(TONE_MS+120L);
-            return "INJECT:"+backend+":WROTE="+written+":Ask caller if they heard it";
+            return "INJECT:"+backend+":WROTE_SHORTS="+written+":Ask caller if they heard it";
         }catch(Exception error){return "INJECT_ERROR:"+brief(error);}
         finally{if(track!=null){try{track.stop();}catch(Exception ignored){}track.release();}}
     }
@@ -370,7 +380,7 @@ public final class AudioProbe {
         if(!("AUTO".equals(captureChoice)||"REDIRECT".equals(captureChoice)
                 ||"DOWNLINK".equals(captureChoice)||"CALL".equals(captureChoice))
                 ||!("AUTO".equals(uplinkChoice)||"REDIRECT".equals(uplinkChoice)
-                ||"TELEPHONY".equals(uplinkChoice))) {
+                ||"TELEPHONY".equals(uplinkChoice)||"TELEPHONY_48K".equals(uplinkChoice))) {
             output.writeUTF("ERROR:Unknown audio backend settings");output.flush();return;
         }
         Context context=shellContext();
@@ -400,6 +410,8 @@ public final class AudioProbe {
         }
         final AudioRecord[] fromCall={record};
         final AudioTrack toCall=track;
+        final NativeUplinkPcm uplinkAdapter="TELEPHONY_48K".equals(uplinkMethod)
+                ?new NativeUplinkPcm():null;
         final AtomicBoolean connected=new AtomicBoolean(true);
         final boolean automatic="AUTO".equals(captureChoice);
         final int[] sourceIndex={0};
@@ -473,9 +485,10 @@ public final class AudioProbe {
                         input.readFully(pcm);
                         for(int i=0;i<samples.length;i++)
                             samples[i]=(short)((pcm[i*2]&255)|(pcm[i*2+1]<<8));
+                        short[] playback=uplinkAdapter==null?samples:uplinkAdapter.convert(samples);
                         int offset=0;
-                        while(offset<samples.length && connected.get()){
-                            int n=toCall.write(samples,offset,samples.length-offset,
+                        while(offset<playback.length && connected.get()){
+                            int n=toCall.write(playback,offset,playback.length-offset,
                                     AudioTrack.WRITE_BLOCKING);
                             if(n<=0)throw new IOException("uplink write "+n);
                             offset+=n;

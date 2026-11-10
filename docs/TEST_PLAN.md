@@ -17,6 +17,8 @@ The user does not want another speculative install cycle. The objective is to ca
 
 ## Current automated production-code tests
 
+0.9.4 adds eight production native-adapter/helper-version cases to the voice test script. They verify 20 ms / one-second duration, stereo duplication, arbitrary chunk boundaries, full-scale/DC behavior, bounded impulse response and 1 ms delay, 1 kHz passband with image suppression, session isolation and replacement of V1/V2/V3 while reusing V4. This brings the distinct automated case count to 51; the five TLS cases run for both TLS versions. Native HAL routing remains device-unverified. See [0.9.4](TEST_BUILD_0.9.4.md).
+
 `bash tools/test_voice_protocol.sh` compiles actual `VoiceSecureTransport.java`, `VoiceRelayServer.java` and `SocketDeadline.java`. Android call state, preferences and the helper's hardware PCM endpoint are substituted; networking and cryptography are real loopback TCP.
 
 - 22 protocol cases: encrypted roundtrip; staged client and host handshake EOF; wrong pairing; forged host proof; media EOF; tampering; replay; fragmented simultaneous duplex; six concurrent senders; six truncation positions; four invalid lengths; bounded media timeout.
@@ -32,7 +34,7 @@ These tests are in CI before Android compilation. No tests claim a modem, microp
 
 ## Integration regressions to catch
 
-- Old V1/V2 helper is replaced by V3 on a version upgrade without clearing the stored Android debugging identity.
+- Old V1/V2/V3 helper is replaced by V4 on a version upgrade without clearing the stored Android debugging identity.
 - An exception before STREAM_READY causes the helper to send an explicit error if the socket is still usable.
 - No UTF error message is inserted after binary PCM streaming begins.
 - Host reports which stage failed and exposes sanitized details to an authenticated paired companion.

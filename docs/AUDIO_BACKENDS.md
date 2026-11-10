@@ -16,7 +16,7 @@ The helper's private socket accepts a per-install random secret, followed by one
 
 - `PING`: Process readiness, not call-audio readiness.
 - `CAPTURE`: Measures input signal levels and summarizes candidate capture backends.
-- `INJECT`, `INJECT:REDIRECT`, `INJECT:TELEPHONY`: Attempts a brief quiet test tone. Caller must consent and audibility must be confirmed by the person at the other end.
+- `INJECT`, `INJECT:REDIRECT`, `INJECT:TELEPHONY`, `INJECT:TELEPHONY_48K`: Attempts a brief quiet test tone. Caller must consent and audibility must be confirmed by the person at the other end.
 - `STREAM:<capture>:<uplink>`: Opens the selected bidirectional PCM audio paths.
 - `STOP`: Stops the helper and closes its listening socket.
 
@@ -41,9 +41,12 @@ The first version of the helper attempted only `VOICE_CALL`. This was expanded t
 | --- | --- | --- |
 | `REDIRECT` | Reflective `AudioManager.getCallUplinkInjectionAudioTrack(AudioFormat)` | Device may expose a track without the far-end caller hearing it |
 | `TELEPHONY` | `AudioTrack` with telephony output selected as preferred device | Vendor audio policy may reject or redirect the track |
+| `TELEPHONY_48K` | Explicit 48 kHz stereo PCM16 track and stateful 16→48 kHz stereo adapter, MODE_IN_CALL required | Matches published MT6789 incall playback format; installed HAL routing and audibility remain unverified. Not included in AUTO |
 | `AUTO` | Tries REDIRECT, then TELEPHONY | Successful write only confirms local acceptance of the samples |
 
 The test reports how many samples were written and the requested route. It cannot detect whether the remote party actually heard the tone. That evidence must come from the call participant.
+
+From 0.9.4 the injection result names the written interleaved PCM16 elements as WROTE_SHORTS. At 48 kHz stereo there are six output shorts per 16 kHz mono input sample. V4 uses the same authenticated loopback protocol and 640-byte mono wire frames; conversion happens only immediately before native track writes. See [test candidate](TEST_BUILD_0.9.4.md).
 
 ## Android attribution matters
 

@@ -1,5 +1,9 @@
 # PhnLnk maintainer contract
 
+## Current owner-requested test candidate: 0.9.4 / code 18
+
+On November 10 the owner explicitly said, "I want a new apk to test. Keep working." This supersedes the earlier no-speculative-APK request for this test candidate; it does not establish MP01 speech or authorize replacing the permanent signing key. V4 retains the V3 bootstrap and EOF fixes, replaces older authenticated helper versions, and adds a separately selected `TELEPHONY_48K` uplink with tested 16→48 kHz stereo conversion. AUTO and downlink behavior remain unchanged. Follow [0.9.4 test instructions](docs/TEST_BUILD_0.9.4.md). Historical 0.9.3 findings below remain evidence, not a description of the new native option.
+
 Last reviewed: 2026-11-08. This is the source of truth for human and coding-agent maintainers.
 
 Resumed review: November 10, 2026, from main `198710f`. See [current engineering status](docs/ENGINEERING_STATUS_2026-11-10.md). Development remains 0.9.3/code 17; this investigation changes offline analysis and a test-harness race, with no Android runtime or signing changes. Re-fetched public policies match the prior recorded hashes. Mix-port declarations support 16/48 kHz mono downlink and 44.1/48 kHz stereo incall playback; Telephony Tx declares mono. This does not establish installed policy, conversion, shell grants or speech. No speculative owner APK test is requested.

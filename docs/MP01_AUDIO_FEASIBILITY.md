@@ -1,5 +1,7 @@
 # MP01 cellular audio feasibility, November 8, 2026
 
+0.9.4 follow-up: the owner explicitly requested a new APK. A separately selectable TELEPHONY_48K uplink and tested PCM adapter now implement the format experiment identified below; AUTO and capture remain unchanged. This is not proof of the installed policy or caller audibility. See [test candidate](TEST_BUILD_0.9.4.md). Historical descriptions below of the helper requesting only 16 kHz mono apply to 0.9.3.
+
 **Verdict: unresolved on the installed MP01 firmware.** There is a credible shell-authorized research path, but no demonstrated two-way speech on this phone. Neither universal impossibility nor compatibility follows from the evidence. No new install or speculative APK test is requested.
 
 November 10 follow-up: [resumed engineering status](ENGINEERING_STATUS_2026-11-10.md) traces Android 14 explicit telephony routing and native format selection. Both pinned public policies were downloaded again and match the prior hashes. [Native comparison evidence](research/MP01_NATIVE_FORMAT_REVIEW.json) distinguishes mix declarations from HAL/device formats; it is not installed-firmware evidence.

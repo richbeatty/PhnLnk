@@ -40,7 +40,8 @@ final class AudioAccessState {
 
     static String uplinkMethod(Context context) {
         String value=prefs(context).getString("uplink_backend","AUTO");
-        return "REDIRECT".equals(value)||"TELEPHONY".equals(value)?value:"AUTO";
+        return "REDIRECT".equals(value)||"TELEPHONY".equals(value)
+                ||"TELEPHONY_48K".equals(value)?value:"AUTO";
     }
 
     static String cycleCapture(Context context) {
@@ -54,7 +55,7 @@ final class AudioAccessState {
     }
 
     static String cycleUplink(Context context) {
-        String[] methods={"AUTO","REDIRECT","TELEPHONY"};
+        String[] methods={"AUTO","REDIRECT","TELEPHONY","TELEPHONY_48K"};
         String current=uplinkMethod(context);
         int next=0;
         for(int i=0;i<methods.length;i++)if(methods[i].equals(current))next=(i+1)%methods.length;

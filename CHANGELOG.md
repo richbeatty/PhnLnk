@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.9.4, explicitly requested audio test candidate
+
+- Owner explicitly requested a new APK for testing on November 10, superseding the earlier instruction against another speculative install. Cellular speech remains unverified; this is a test candidate.
+- Added selectable `TELEPHONY_48K` uplink: 48 kHz stereo PCM16 playback matching the published MT6789 incall mix. A stateful 97-tap interpolation filter converts 16 kHz mono input; the 640-byte encrypted wire format and existing AUTO order are unchanged. The native route requires Android MODE_IN_CALL.
+- Helper V4 retains V3 Looper/bootstrap and EOF safeguards. Version handling reuses V4 and explicitly replaces V1/V2/V3 without clearing the saved Android ADB identity.
+- Added eight JVM tests of production conversion and version handling: duration, stereo channels, frame-boundary continuity, full-scale gain, impulse delay, image suppression and session isolation.
+- Version 0.9.4/code 18; same application ID and permanent release signing configuration. Signed distribution requires the existing key; no replacement key is authorized. See `docs/TEST_BUILD_0.9.4.md`.
+
 ## Unreleased, resumed MP01 investigation (November 10, 2026)
 
 - Continued from main `198710f` without changing Android runtime code, version 0.9.3/code 17, pairing storage, TLS pins, V3 helper, media protocol or signing configuration. No APK distribution.

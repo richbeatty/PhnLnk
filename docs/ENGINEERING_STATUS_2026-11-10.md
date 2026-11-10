@@ -1,5 +1,7 @@
 # Resumed engineering status — November 10, 2026
 
+Later owner direction on November 10 explicitly requested a new APK. The subsequent [0.9.4 candidate](TEST_BUILD_0.9.4.md) implements the optional native uplink adapter described as future work below. This report preserves the earlier analysis stage. The signed 0.9.3 workflow was attempted and stopped at the missing permanent signing credentials gate; no installable release resulted. The owner is unsure where the original key is stored. Do not substitute a debug or newly generated release identity.
+
 **The requested two-device, different-network cellular calling solution remains unproven on MP01.** Public source establishes candidate audio routes, not that the owner's installed firmware delivers speech. There is no connected MP01 in this environment. It would be unjustified to declare either success or universal impossibility, or to send another speculative APK.
 
 ## Baseline and preserved work

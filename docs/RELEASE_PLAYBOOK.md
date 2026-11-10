@@ -31,7 +31,7 @@ The Android app keeps applicationId `com.richbeatty.phnlnk`.
 
 Bump both `versionCode` and `versionName` for every installable release. Update the exact version assertions in `tools/maintainer_check.py` and add a changelog entry. A new versionCode must be larger than every previously shipped signed APK.
 
-Current code after this change targets version 0.9.3 with versionCode 17. The voice protocol still uses `PHN1`; Java semantic version changes do not imply a wire protocol change.
+Current code after this change targets version 0.9.4 with versionCode 18. The voice protocol still uses `PHN1`; Java semantic version changes do not imply a wire protocol change.
 
 ## Signing key rules
 
