@@ -49,9 +49,9 @@ require("Wireless Debugging" in maintainer and "default Phone" in maintainer,
 require(re.search(r"applicationId\s+['\"]com\.richbeatty\.phnlnk['\"]", gradle),
         "The applicationId must remain com.richbeatty.phnlnk")
 match = re.search(r"versionCode\s+(\d+)", gradle)
-require(match is not None and int(match.group(1)) >= 17,
-        "The versionCode must be at least 17 and increase on subsequent releases")
-require("versionName '0.9.3'" in gradle,
+require(match is not None and int(match.group(1)) >= 19,
+        "The versionCode must be at least 19 and increase on subsequent releases")
+require("versionName '0.9.5'" in gradle,
         "Update this check alongside the changelog and new versionName")
 
 # The user allows explicitly opted-in guided Android pairing, never an automatic privilege grant or default Phone role.
@@ -196,7 +196,10 @@ require("VOICE_HANDSHAKE_CLOSED" in voice_transport and
 require("Looper.prepareMainLooper()" in helper and "Looper.loop()" in helper and
         helper.index("Looper.prepareMainLooper()") < helper.index("daemon.frameworkContext = createShellContext()"),
         "app_process helper must create framework context on a prepared, pumped Looper")
-require('READY:V3:' in helper and 'READY:V3:' in host_adb and 'READY:V3:' in audio_service,
+helper_version=content("app/src/main/java/com/richbeatty/phnlnk/AudioHelperVersion.java")
+require('READY:V4:' in helper and 'READY:V4:' in helper_version and
+        'AudioHelperVersion.isCurrent' in host_adb and 'AudioHelperVersion.isCurrent' in audio_service and
+        'AudioHelperVersion.isObsolete' in host_adb,
         "Replace old helpers without discarding saved Android debugging identity")
 require('android:usesCleartextTraffic="false"' in manifest,
         "Control migration must fail closed without cleartext HTTP fallback")

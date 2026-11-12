@@ -1,0 +1,92 @@
+{
+  "reviewed": "2026-11-10",
+  "baseline": "198710f542fb410212755bd5475a036321935785",
+  "installed_firmware_match": "UNKNOWN",
+  "evidence": "DECLARED_POLICY_ONLY_NOT_AUDIBILITY",
+  "policies": [
+    {
+      "source": "https://github.com/minimalcompany/mp01-device/blob/1dff2f7fa804af63e8c9c5f5ddaae6af4a44b74a/device/mediatek/mt6789/audio_policy_config/audio_policy_configuration.xml",
+      "sha256": "f634f82811abfbf03ec8b3e0f344bc5747941e8fe2a8d4a24a6a4888b5e6c02a",
+      "native_format_comparison": {
+        "scope": "MIX_PORT_DECLARATIONS_ONLY_NO_CONVERSION_OR_HAL_PROOF",
+        "routes": [
+          {
+            "module": "primary",
+            "direction": "DOWNLINK",
+            "mix": "voice tx",
+            "sink": "voice tx",
+            "pcm16_16000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_stereo": "NOT_DECLARED"
+          },
+          {
+            "module": "primary",
+            "direction": "UPLINK",
+            "mix": "incall_music_uplink",
+            "sink": "Telephony Tx",
+            "pcm16_16000_mono": "NOT_DECLARED",
+            "pcm16_48000_mono": "NOT_DECLARED",
+            "pcm16_48000_stereo": "EXACT_DECLARATION"
+          }
+        ]
+      },
+      "unresolved_includes": [
+        "bluetooth_audio_policy_configuration.xml",
+        "a2dp_in_audio_policy_configuration.xml",
+        "usb_audio_accessory_only_policy_configuration.xml",
+        "r_submix_audio_policy_configuration.xml",
+        "audio_policy_volumes.xml",
+        "default_volume_tables.xml"
+      ]
+    },
+    {
+      "source": "https://github.com/minimalcompany/mp01-device/blob/1dff2f7fa804af63e8c9c5f5ddaae6af4a44b74a/device/mediatek/vendor/common/audio_policy_config/audio_policy_configuration.xml",
+      "sha256": "aed08f42bc4cff42664b82716882e02d4cdd5fdd8c304c7f60ce665dd470d60f",
+      "native_format_comparison": {
+        "scope": "MIX_PORT_DECLARATIONS_ONLY_NO_CONVERSION_OR_HAL_PROOF",
+        "routes": [
+          {
+            "module": "primary",
+            "direction": "DOWNLINK",
+            "mix": "primary input",
+            "sink": "primary input",
+            "pcm16_16000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_stereo": "EXACT_DECLARATION"
+          },
+          {
+            "module": "primary",
+            "direction": "DOWNLINK",
+            "mix": "voice tx",
+            "sink": "voice tx",
+            "pcm16_16000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_mono": "EXACT_DECLARATION",
+            "pcm16_48000_stereo": "EXACT_DECLARATION"
+          }
+        ]
+      },
+      "unresolved_includes": [
+        "bluetooth_audio_policy_configuration.xml",
+        "a2dp_in_audio_policy_configuration.xml",
+        "usb_audio_accessory_only_policy_configuration.xml",
+        "r_submix_audio_policy_configuration.xml",
+        "audio_policy_volumes.xml",
+        "default_volume_tables.xml"
+      ]
+    }
+  ],
+  "android14_sources": [
+    {
+      "source": "https://android.googlesource.com/platform/frameworks/base/+/android-14.0.0_r1/media/java/android/media/AudioManager.java",
+      "decoded_sha256": "adb243e04c1e3c5a61b368712c5717775079b88a61aefc7cb4b83fc4ebcc72e4"
+    },
+    {
+      "source": "https://android.googlesource.com/platform/frameworks/av/+/android-14.0.0_r1/services/audiopolicy/managerdefault/AudioPolicyManager.cpp",
+      "decoded_sha256": "2be71ed57f1b461d033db5368b03d5dfc902c8f215be3691ade0a5312358f089"
+    },
+    {
+      "source": "https://android.googlesource.com/platform/frameworks/av/+/android-14.0.0_r1/services/audiopolicy/service/AudioPolicyInterfaceImpl.cpp",
+      "decoded_sha256": "6de13844b9da98f6ccad306a2293174669ab16eb77ee0c1d8f35cbd557106835"
+    }
+  ]
+}

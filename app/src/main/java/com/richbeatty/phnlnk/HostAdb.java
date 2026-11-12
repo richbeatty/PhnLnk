@@ -91,6 +91,9 @@ final class HostAdb {
             boolean result = manager.pair(LOOPBACK, port, code);
             if (!result) throw new IllegalStateException("Android did not accept the pairing code.");
             return "Paired with Android's local debugging service. You can return to PhnLnk.";
+        } catch(Exception error) {
+            throw new IllegalStateException("ADB_PAIR_HANDSHAKE: "+error.getClass().getSimpleName()
+                    +". Keep Android's current pairing-code dialog open and use its current six digits. This is separate from companion pairing.",error);
         } finally {
             manager.close();
         }
@@ -107,10 +110,10 @@ final class HostAdb {
         try {
             existing = AudioProbeClient.request(context, "PING");
         } catch (Exception ignored) { existing = ""; }
-        if (existing.startsWith("READY:V3:")) return existing;
-        if (existing.startsWith("READY:V1:")) {
+        if (AudioHelperVersion.isCurrent(existing)) return existing;
+        if (AudioHelperVersion.isObsolete(existing)) {
             // A signed app update does not automatically restart a shell UID
-            // daemon. Stop the previous probe so the V3 framework bootstrap can bind
+            // daemon. Stop the previous probe so the V4 native audio helper can bind
             // its loopback socket. The ADB pairing identity is kept.
             progress(listener, "Replacing previous audio helper with full-duplex version...");
             try { AudioProbeClient.request(context, "STOP"); }
@@ -216,7 +219,7 @@ final class HostAdb {
         for (int attempt = 0; attempt < 10; attempt++) {
             try {
                 String response = AudioProbeClient.request(context, "PING");
-                if (response.startsWith("READY:V3:")) return response;
+                if (AudioHelperVersion.isCurrent(response)) return response;
             } catch (Exception ignored) { }
             Thread.sleep(300);
         }
@@ -268,12 +271,16 @@ final class HostAdb {
     private int discover(String serviceType, int timeoutMs) throws Exception {
         AtomicInteger result = new AtomicInteger(-1);
         CountDownLatch done = new CountDownLatch(1);
-        // Android may advertise its own adbd through an address that
-        // NetworkInterface.getByInetAddress does not match (e.g. scoped IPv6).
-        // Discovery only supplies an ephemeral port. The actual ADB session
-        // is ALWAYS opened against 127.0.0.1, never the advertised peer.
+        java.util.List<InetAddress> local=new java.util.ArrayList<>();
+        java.util.Enumeration<java.net.NetworkInterface> interfaces=java.net.NetworkInterface.getNetworkInterfaces();
+        if(interfaces!=null)while(interfaces.hasMoreElements())
+            local.addAll(java.util.Collections.list(interfaces.nextElement().getInetAddresses()));
+        // Compare raw address bytes (ignoring IPv6 scope identifiers), never
+        // select the first remote phone's port and then apply it to loopback.
+        // The actual ADB session still connects ONLY to 127.0.0.1.
         AdbMdns mdns = new AdbMdns(context, serviceType, (InetAddress host, int port) -> {
-            if (port > 0 && result.compareAndSet(-1, port)) done.countDown();
+            if (port > 0 && LocalAdbEndpoint.isLocal(host,local)
+                    && result.compareAndSet(-1, port)) done.countDown();
         });
         WifiManager wifi = (WifiManager) context.getApplicationContext()
                 .getSystemService(Context.WIFI_SERVICE);

@@ -24,7 +24,9 @@ You are maintaining a real Android telephony project, not a disposable prototype
 - Protect **both** control and media communications before describing the app as safe over public networks. Control 47321 uses pinned HTTPS from 0.9.3, including pairing. Do not reintroduce plaintext fallback or port forwarding.
 - The shell helper's readiness and a passing encryption test do not prove carrier audio. The initial VOICE_CALL capture was reported silent on the MP01. The specific MP01's alternative downlink and uplink routes remain unverified.
 - The user has asked not to be repeatedly sent experimental APKs to test. Exhaust automated and independent evidence first.
+- November 10 update: the owner explicitly requested a new APK to test. A clearly labeled experimental candidate is now authorized after automated gates; retain the permanent signing identity and do not claim MP01 speech is proven.
 - Do not make promises of hardware compatibility or release readiness that are not supported by tests.
+- From 0.9.5, signing/publication also requires the real Android 14 keystore/TLS/pairing CI gate. Do not infer Android runtime correctness from exportable-key JVM tests. Existing host TLS identity may change only after explicit repair confirmation; retain pairing tokens and require companion fingerprint verification.
 
 ## Architecture invariants
 

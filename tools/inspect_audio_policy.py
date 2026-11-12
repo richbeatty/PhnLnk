@@ -10,6 +10,47 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 
+def declared_format(port, rate, mask, encoding="AUDIO_FORMAT_PCM_16_BIT"):
+    """Exact declaration only. Missing/dynamic fields cannot prove a match.
+
+    Match a single profile, never a rate from one and channels from another.
+    This deliberately does not predict Android mixer conversion or HAL behavior.
+    """
+    unknown = False
+    for profile in port.get("profiles", []):
+        fields = (profile.get("format", "").split(),
+                  profile.get("samplingRates", "").split(),
+                  profile.get("channelMasks", "").split())
+        wanted = (encoding, str(rate), mask)
+        if all(value in values for value, values in zip(wanted, fields)):
+            return "EXACT_DECLARATION"
+        if all(value in values or not values or "dynamic" in values
+               for value, values in zip(wanted, fields)):
+            unknown = True
+    return "UNKNOWN" if unknown or not port.get("profiles") else "NOT_DECLARED"
+
+
+def native_comparison(modules):
+    rows = []
+    for module in modules:
+        for direction, routes, key in (
+                ("DOWNLINK", module["downlink_routes"], "capture_mix"),
+                ("UPLINK", module["uplink_routes"], "playback_mixes")):
+            for route in routes:
+                if direction == "DOWNLINK":
+                    ports = [route[key]] if route[key] else []
+                else:
+                    ports = route[key]
+                for port in ports:
+                    prefix = "AUDIO_CHANNEL_IN_" if direction == "DOWNLINK" else "AUDIO_CHANNEL_OUT_"
+                    rows.append({"module": module["module"], "direction": direction,
+                                 "mix": port["name"], "sink": route["sink"],
+                                 "pcm16_16000_mono": declared_format(port, 16000, prefix + "MONO"),
+                                 "pcm16_48000_mono": declared_format(port, 48000, prefix + "MONO"),
+                                 "pcm16_48000_stereo": declared_format(port, 48000, prefix + "STEREO")})
+    return {"scope": "MIX_PORT_DECLARATIONS_ONLY_NO_CONVERSION_OR_HAL_PROOF", "routes": rows}
+
+
 def inspect(root):
     modules = []
     for module in root.findall("./modules/module"):
@@ -45,6 +86,7 @@ def inspect(root):
                         "telephony_tx_devices": [describe(p) for p in outputs],
                         "downlink_routes": down, "uplink_routes": up})
     return {"evidence": "DECLARED_POLICY_ONLY_NOT_AUDIBILITY", "modules": modules,
+            "native_format_comparison": native_comparison(modules),
             "unresolved_includes": [p.get("href") for p in root.iter()
                                     if p.tag == "{http://www.w3.org/2001/XInclude}include"]}
 

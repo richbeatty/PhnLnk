@@ -34,6 +34,7 @@ import org.json.JSONObject;
 public final class HostActivity extends Activity {
     private TextView status;
     private Button permissionsButton;
+    private Button repairTlsButton;
     private TextView pairCode;
     private TextView pairInfo;
     private ImageView qr;
@@ -130,6 +131,15 @@ public final class HostActivity extends Activity {
 
         LinearLayout settings=PhoneUi.card(this);
         settings.addView(PhoneUi.label(this,"Manage connection",19,PhoneUi.INK,true));
+        repairTlsButton=secondary("Repair encrypted connection",()->
+                new AlertDialog.Builder(this)
+                        .setTitle("Repair this phone's TLS key?")
+                        .setMessage("The older TLS key cannot sign Android's encrypted connections. This creates a new security fingerprint. Saved pairing tokens and Android debugging pairing are kept. Each companion must explicitly verify the new fingerprint shown on this main phone. The APK signing key is unchanged.")
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("Repair TLS key",(dialog,which)->repairTls())
+                        .show());
+        repairTlsButton.setVisibility(View.GONE);
+        settings.addView(repairTlsButton,PhoneUi.margins(this,13,9));
         settings.addView(secondary("Resume connection",()->{
             getSharedPreferences("mode", MODE_PRIVATE).edit().putBoolean("hosting_enabled",true).apply();
             try{startForegroundService(new Intent(this,GatewayService.class));}
@@ -244,13 +254,42 @@ public final class HostActivity extends Activity {
         else updateStatus();
     }
 
+    private void repairTls() {
+        repairTlsButton.setEnabled(false);
+        stopService(new Intent(this,GatewayService.class));
+        new Thread(()->{
+            try {
+                HostTlsIdentity.repairAfterConfirmation();
+                runOnUiThread(()->{
+                    if(isFinishing() || isDestroyed())return;
+                    repairTlsButton.setEnabled(true);
+                    if(getSharedPreferences("mode",MODE_PRIVATE).getBoolean("hosting_enabled",true))
+                        startForegroundService(new Intent(this,GatewayService.class));
+                    updateStatus();
+                    new AlertDialog.Builder(this).setTitle("Encrypted connection repaired")
+                            .setMessage("Compare the new security fingerprint on each companion before trusting it. Saved pairing tokens and Android debugging identity were kept.")
+                            .setPositiveButton("OK",null).show();
+                });
+            } catch(Exception error) {
+                runOnUiThread(()->{
+                    if(isFinishing() || isDestroyed())return;
+                    repairTlsButton.setEnabled(true);
+                    status.setText("TLS repair failed: "+error.getClass().getSimpleName());
+                });
+            }
+        },"PhnLnk-TLS-repair").start();
+    }
+
     private void updateStatus() {
         try {
+            boolean tlsNeedsRepair=HostTlsIdentity.needsRepair();
+            if(repairTlsButton!=null)repairTlsButton.setVisibility(tlsNeedsRepair?View.VISIBLE:View.GONE);
             JSONObject report = CallController.status(this);
             if (permissionsButton != null) permissionsButton.setVisibility(
                     hasRequiredPermissions() ? View.GONE : View.VISIBLE);
             String link = preferredUrl();
             status.setText("Host: " + (GatewayService.isRunning() ? "Ready" : "Off")
+                    + (tlsNeedsRepair ? "\nEncrypted connection needs repair. Tap Repair encrypted connection below." : "")
                     + "    Call: " + report.getString("callState")
                     + "\nAudio test: " + AudioAccessState.display(this)
                     + "\nConnected devices: " + PairingManager.get(this).count()

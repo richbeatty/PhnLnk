@@ -1,5 +1,7 @@
 # Validation and acceptance plan
 
+0.9.5 changes the release gate: after compilation, CI must run tools/test_android_runtime.sh on an isolated API 34 emulator before signing or publication. Seven cases exercise actual AndroidKeyStore/Conscrypt, pre-certificate legacy TLS failure, no silent rotation, explicit identity repair with token/ADB preference persistence, active-alias selection, explicit pin migration and production HTTPS pairing/status. The custom instrumentation APK is debug-only and its destructive fixtures must never target an owner's installation. Two added local-address discovery cases bring JVM/policy cases to 53; Android adds seven separate runtime cases. See [reliability reset](RELIABILITY_RESET_2026-11-10.md).
+
 The user does not want another speculative install cycle. The objective is to catch every software-detectable problem before recommending a device test, then be explicit that hardware behavior cannot be proven without a device test.
 
 ## Test levels
@@ -17,6 +19,8 @@ The user does not want another speculative install cycle. The objective is to ca
 
 ## Current automated production-code tests
 
+0.9.4 adds eight production native-adapter/helper-version cases to the voice test script. They verify 20 ms / one-second duration, stereo duplication, arbitrary chunk boundaries, full-scale/DC behavior, bounded impulse response and 1 ms delay, 1 kHz passband with image suppression, session isolation and replacement of V1/V2/V3 while reusing V4. This brings the distinct automated case count to 51; the five TLS cases run for both TLS versions. Native HAL routing remains device-unverified. See [0.9.4](TEST_BUILD_0.9.4.md).
+
 `bash tools/test_voice_protocol.sh` compiles actual `VoiceSecureTransport.java`, `VoiceRelayServer.java` and `SocketDeadline.java`. Android call state, preferences and the helper's hardware PCM endpoint are substituted; networking and cryptography are real loopback TCP.
 
 - 22 protocol cases: encrypted roundtrip; staged client and host handshake EOF; wrong pairing; forged host proof; media EOF; tampering; replay; fragmented simultaneous duplex; six concurrent senders; six truncation positions; four invalid lengths; bounded media timeout.
@@ -24,13 +28,15 @@ The user does not want another speculative install cycle. The objective is to ca
 
 `bash tools/test_control_tls.sh` compiles actual `ControlTls.java` and generates ephemeral test EC certificates, unrelated to release signing. Five cases cover strict pin validation, valid TLS application bytes and session identity verification, changed-host rejection before request, discovery without application payload, and unchanged default CA trust.
 
-`python3 tools/test_audio_policy.py` has four tests of the offline policy inspector, including device aliases, missing playback routes, native profiles and unresolved includes. It never claims audibility.
+`python3 tools/test_audio_policy.py` has seven tests of the offline policy inspector, including device aliases, missing playback routes, native profiles and unresolved includes. Added cases prevent combining fields from different profiles, preserve unknown/dynamic declarations and replay the recorded MP01 platform/common policy differences. It never claims audibility.
+
+The TLS certificate-rejection cases permit either a TLS alert or server-side TCP SocketException: TLS 1.3 can still be writing Finished when the correctly rejecting client closes. Client-side SSLHandshakeException remains required. A received application byte still fails the changed-identity test. These expected server failures are not permitted in positive traffic or discovery tests.
 
 These tests are in CI before Android compilation. No tests claim a modem, microphone, AndroidKeyStore or physical MP01 was exercised.
 
 ## Integration regressions to catch
 
-- Old V1/V2 helper is replaced by V3 on a version upgrade without clearing the stored Android debugging identity.
+- Old V1/V2/V3 helper is replaced by V4 on a version upgrade without clearing the stored Android debugging identity.
 - An exception before STREAM_READY causes the helper to send an explicit error if the socket is still usable.
 - No UTF error message is inserted after binary PCM streaming begins.
 - Host reports which stage failed and exposes sanitized details to an authenticated paired companion.

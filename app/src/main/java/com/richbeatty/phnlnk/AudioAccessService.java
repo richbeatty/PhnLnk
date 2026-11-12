@@ -47,7 +47,7 @@ public final class AudioAccessService extends Service {
                     String reply;
                     try { reply = AudioProbeClient.request(AudioAccessService.this,"PING"); }
                     catch (Exception ignored) { reply = ""; }
-                    if (!reply.startsWith("READY:V3:")) {
+                    if (!AudioHelperVersion.isCurrent(reply)) {
                         if (!AudioAccessState.isPaired(AudioAccessService.this)) {
                             AudioAccessState.set(AudioAccessService.this,
                                     AudioAccessState.NEEDS_PAIRING,
@@ -60,7 +60,7 @@ public final class AudioAccessService extends Service {
                                             AudioAccessState.CONNECTING, step));
                         }
                     }
-                    ready = reply.startsWith("READY:V3:");
+                    ready = AudioHelperVersion.isCurrent(reply);
                     if (ready) {
                         AudioAccessState.set(AudioAccessService.this,
                                 AudioAccessState.READY,

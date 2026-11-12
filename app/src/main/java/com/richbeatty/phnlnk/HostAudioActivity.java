@@ -135,7 +135,9 @@ public final class HostAudioActivity extends Activity {
                 "Outgoing audio: "+AudioAccessState.uplinkMethod(this),()->{});
         uplinkMethod.setOnClickListener(v->{
             uplinkMethod.setText("Outgoing audio: "+AudioAccessState.cycleUplink(this));
-            testResult.setText("Uplink route saved for the next voice connection.");
+            testResult.setText("TELEPHONY_48K".equals(AudioAccessState.uplinkMethod(this))
+                    ? "Experimental MediaTek route: 48 kHz stereo playback. Caller audibility is unverified. Applies to the next test or voice connection."
+                    : "Uplink route saved for the next voice connection.");
         });
         test.addView(uplinkMethod,PhoneUi.margins(this,0,12));
         capture = secondaryButton("Check incoming call sound", () ->

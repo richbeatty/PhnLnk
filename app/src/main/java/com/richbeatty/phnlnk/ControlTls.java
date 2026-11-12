@@ -5,12 +5,16 @@ import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.SSLEngine;
+import java.security.PrivateKey;
+import java.security.Principal;
+import java.net.Socket;
 
 /** TLS primitives shared by Android and real JVM socket tests. No global trust overrides. */
 final class ControlTls {
@@ -33,11 +37,39 @@ final class ControlTls {
         return requirePin(pin).replaceAll("(.{8})(?!$)", "$1 ");
     }
 
-    static SSLContext serverContext(KeyStore identity, char[] password) throws Exception {
-        KeyManagerFactory keys = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        keys.init(identity, password);
-        SSLContext tls = SSLContext.getInstance("TLS");
-        tls.init(keys.getKeyManagers(), null, null);
+    /** Serve only the explicitly selected identity, even when a legacy key is retained. */
+    static SSLContext serverContext(KeyStore identity, char[] password, String alias) throws Exception {
+        final PrivateKey key=(PrivateKey)identity.getKey(alias,password);
+        java.security.cert.Certificate[] stored=identity.getCertificateChain(alias);
+        if(key==null || stored==null || stored.length==0)
+            throw new IllegalStateException("Host TLS identity is incomplete");
+        final X509Certificate[] chain=new X509Certificate[stored.length];
+        for(int i=0;i<stored.length;i++)chain[i]=(X509Certificate)stored[i];
+        X509ExtendedKeyManager selected=new X509ExtendedKeyManager(){
+            private boolean supports(String type){
+                if(type==null)return false;
+                String[] parts=type.split("_",2);
+                return parts[0].equals(key.getAlgorithm()) && (parts.length==1 ||
+                        chain[0].getSigAlgName().toUpperCase(java.util.Locale.ROOT).contains(parts[1]));
+            }
+            @Override public String[] getServerAliases(String type,Principal[] issuers){
+                return supports(type)?new String[]{alias}:null;
+            }
+            @Override public String chooseServerAlias(String type,Principal[] issuers,Socket socket){
+                return supports(type)?alias:null;
+            }
+            @Override public String chooseEngineServerAlias(String type,Principal[] issuers,SSLEngine engine){
+                return supports(type)?alias:null;
+            }
+            @Override public X509Certificate[] getCertificateChain(String name){
+                return alias.equals(name)?chain.clone():null;
+            }
+            @Override public PrivateKey getPrivateKey(String name){return alias.equals(name)?key:null;}
+            @Override public String[] getClientAliases(String type,Principal[] issuers){return null;}
+            @Override public String chooseClientAlias(String[] types,Principal[] issuers,Socket socket){return null;}
+        };
+        SSLContext tls=SSLContext.getInstance("TLS");
+        tls.init(new javax.net.ssl.KeyManager[]{selected},null,null);
         return tls;
     }
 
@@ -90,6 +122,9 @@ final class ControlTls {
             socket.setSoTimeout(4000);
             socket.startHandshake();
             return fingerprint((X509Certificate)socket.getSession().getPeerCertificates()[0]);
+        } catch(java.io.IOException error) {
+            throw new java.io.IOException("HOST_TLS_DISCOVERY: Could not read the main phone's certificate ("
+                    +error.getClass().getSimpleName()+"). Check its encrypted connection status. No pairing code has been sent.",error);
         }
     }
 }

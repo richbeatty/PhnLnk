@@ -1,5 +1,7 @@
 # Encrypted voice protocol
 
+0.9.4 retains PHN1 and the 16 kHz mono PCM16 / 640-byte network and loopback frame layout. Local helper V4 additionally accepts `INJECT:TELEPHONY_48K` and `STREAM:<capture>:TELEPHONY_48K`; it converts uplink PCM to native 48 kHz stereo only at the AudioTrack boundary. PING returns READY:V4. Older V1/V2/V3 helpers must be replaced before using this option. No native-size PCM frame is transmitted on either socket. See [test candidate](TEST_BUILD_0.9.4.md).
+
 The actual implementation is `app/src/main/java/com/richbeatty/phnlnk/VoiceSecureTransport.java`. This document describes the current private v1 wire format, not a reviewed public standard.
 
 ## Ports and security boundaries

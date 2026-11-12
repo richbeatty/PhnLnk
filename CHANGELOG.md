@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.9.5, Android runtime reliability candidate
+
+- Reworked validation after the owner reported pre-fingerprint companion pairing closure and repeated Wireless Debugging failures. Pause new audio backends; require an actual Android 14 runtime gate before signing/publication.
+- Corrected AndroidKeyStore EC TLS authorization: Conscrypt's opaque-key path needs raw NONEwithECDSA signing. New identities permit DIGEST_NONE plus SHA256. Existing v1 keys are retained until explicit host-side Repair encrypted connection confirmation creates v2; saved tokens and ADB identity are retained, and companions must explicitly verify the new fingerprint. The listener refuses an incompatible legacy key instead of reporting Ready.
+- Select only the active certificate/key alias, even with the legacy alias retained. Discovery errors now identify HOST_TLS_DISCOVERY before any pairing code is sent.
+- Added seven real AndroidKeyStore/Conscrypt/HTTPS integration fixtures, ahead of publishing in CI. JVM tests now exercise the selected-alias key manager. Android execution is distinct from JVM cryptography and MP01 hardware acceptance.
+- Self-ADB mDNS rejects unrelated LAN device ports, comparing local address bytes with scoped-IPv6/mapped-IPv4 handling. Added two regression cases. Pairing setup preserves ADB_PAIR_HANDSHAKE failure details instead of discarding them.
+- Version 0.9.5/code 19; permanent APK signing identity and all existing audio/protocol improvements retained. See docs/RELIABILITY_RESET_2026-11-10.md. Target-device speech and durable debugging remain unverified.
+
+## v0.9.4, explicitly requested audio test candidate
+
+- Owner explicitly requested a new APK for testing on November 10, superseding the earlier instruction against another speculative install. Cellular speech remains unverified; this is a test candidate.
+- Added selectable `TELEPHONY_48K` uplink: 48 kHz stereo PCM16 playback matching the published MT6789 incall mix. A stateful 97-tap interpolation filter converts 16 kHz mono input; the 640-byte encrypted wire format and existing AUTO order are unchanged. The native route requires Android MODE_IN_CALL.
+- Helper V4 retains V3 Looper/bootstrap and EOF safeguards. Version handling reuses V4 and explicitly replaces V1/V2/V3 without clearing the saved Android ADB identity.
+- Added eight JVM tests of production conversion and version handling: duration, stereo channels, frame-boundary continuity, full-scale gain, impulse delay, image suppression and session isolation.
+- Version 0.9.4/code 18; same application ID and permanent release signing configuration. Signed distribution requires the existing key; no replacement key is authorized. See `docs/TEST_BUILD_0.9.4.md`.
+
+## Unreleased, resumed MP01 investigation (November 10, 2026)
+
+- Continued from main `198710f` without changing Android runtime code, version 0.9.3/code 17, pairing storage, TLS pins, V3 helper, media protocol or signing configuration. No APK distribution.
+- Re-fetched both pinned manufacturer policies and verified their SHA-256 hashes against the prior audit. Added a native-format comparison to the offline inspector and three regression cases, including replay of the preserved MP01 policy evidence. Missing/dynamic profiles remain unknown; distinct profiles cannot be combined into invented support.
+- Rechecked Android 14 call-mode, explicit Telephony Tx selection, INCALL_MUSIC and permission enforcement. Documented the distinction between mix-port and device-port formats and why neither 16 kHz failure nor 48 kHz success follows from policy alone.
+- Repaired a reproduced TLS negative-test race: correct client certificate rejection may cause server-side SocketException during TLS 1.3 Finished. Client rejection and application-data assertions remain mandatory; production trust code is unchanged.
+- See `docs/ENGINEERING_STATUS_2026-11-10.md` for results and remaining evidence gates.
+
 ## v0.9.3, verified control identity, helper bootstrap and production relay tests
 
 - Replaced plaintext control/pairing with HTTPS on 47321, a persistent AndroidKeyStore host certificate, QR/full-fingerprint verification and fail-closed pin checks. Saved Android tokens migrate explicitly without uninstalling or new ADB pairing; both apps must update. Browser HTTPS trust/origin changes are documented.
