@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build:
+    if: github.ref != 'refs/heads/delivery/signed-v0.9.5'
     runs-on: ubuntu-24.04
     steps:
       - name: Check out source
@@ -197,16 +198,46 @@ jobs:
         run: rm -f "$RUNNER_TEMP/phnlnk-release.p12"
 
   publish_presigned_test:
-    needs: build
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/delivery/signed-v0.9.5'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Verify public pre-signed artifact
+      - name: Verify passing Android runtime gate and CI artifact provenance
+        working-directory: delivery-public
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/richbeatty/PhnLnk/actions/runs/42863697002 > run.json
+          gh api repos/richbeatty/PhnLnk/actions/runs/42863697002/jobs > jobs.json
+          gh api repos/richbeatty/PhnLnk/actions/artifacts/13787145741 > artifact.json
+          python3 - <<'PYVERIFY'
+          import json
+          run=json.load(open('run.json'));jobs=json.load(open('jobs.json'));artifact=json.load(open('artifact.json'))
+          assert run['conclusion']=='success' and run['head_sha']=='c8b1fb0dc9cea57431209e08eea7c3a6fb406c6e'
+          gates=[s for j in jobs['jobs'] for s in j['steps'] if s['name']=='Verify real Android 14 keystore, TLS and pairing']
+          assert len(gates)==1 and gates[0]['conclusion']=='success'
+          assert artifact['id']==13787145741 and artifact['digest']=='sha256:898638aa9b6387b0323a8edfa3bb7a16f99fe900cfc8db0d2bec0c1cbb10a29b'
+          print('Pinned source run and Android runtime gate passed; artifact digest matches.')
+          PYVERIFY
+          gh run download 42863697002 --repo richbeatty/PhnLnk --name PhnLnk-UNSIGNED-RELEASE-CANDIDATE --dir unsigned-ci 2>download-error.txt || { echo 'Verified CI artifact download failed'; exit 1; }
+          python3 - <<'PYPAYLOAD'
+          import zipfile
+          with zipfile.ZipFile('PhnLnk-Android.apk') as signed,zipfile.ZipFile('unsigned-ci/app-release-unsigned.apk') as unsigned:
+              before=set(unsigned.namelist());after=set(signed.namelist())
+              assert before<=after
+              assert after-before <= {'META-INF/MANIFEST.MF','META-INF/PHNLNK.RSA','META-INF/PHNLNK.SF'}
+              for name in before: assert signed.read(name)==unsigned.read(name)
+              assert b'c8b1fb0dc9cea57431209e08eea7c3a6fb406c6e' in signed.read('META-INF/version-control-info.textproto')
+          print('All CI release payload entries unchanged; only standard signing metadata added.')
+          PYPAYLOAD
+      - name: Verify signed APK identity and integrity
         working-directory: delivery-public
         run: |
           sha256sum -c SHA256SUMS.txt
@@ -218,9 +249,9 @@ jobs:
           EXPECTED="$(cat signing-certificate-sha256.txt)"
           test "$ACTUAL" = "$EXPECTED"
           test "$EXPECTED" = eb184833077dac935052e595afd977baeb1a8b55a43d92a21c06a0c26be9f802
-      - name: Publish owner-requested signed test APK
+      - name: Publish signed pairing repair
         working-directory: delivery-public
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.9.5 PhnLnk-Android.apk SHA256SUMS.txt signing-certificate-sha256.txt --repo richbeatty/PhnLnk --target 7dd1d846720070581345dfb0351e8487299f8842 --title 'PhnLnk v0.9.5 signed Android pairing repair' --notes-file RELEASE_NOTES.md --prerelease --latest=false
+          gh release create v0.9.5 PhnLnk-Android.apk SHA256SUMS.txt signing-certificate-sha256.txt --repo richbeatty/PhnLnk --target c8b1fb0dc9cea57431209e08eea7c3a6fb406c6e --title 'PhnLnk v0.9.5 signed Android pairing repair' --notes-file RELEASE_NOTES.md --prerelease --latest=false

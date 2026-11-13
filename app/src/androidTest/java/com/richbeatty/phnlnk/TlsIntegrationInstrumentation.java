@@ -52,17 +52,21 @@ public final class TlsIntegrationInstrumentation extends Instrumentation {
     }
     private void run(Context context)throws Exception{
         String host=null;
-        java.util.Enumeration<java.net.NetworkInterface> interfaces=java.net.NetworkInterface.getNetworkInterfaces();
-        while(interfaces.hasMoreElements() && host==null){
-            java.net.NetworkInterface network=interfaces.nextElement();
-            if(!network.isUp() || network.isLoopback())continue;
-            java.util.Enumeration<InetAddress> addresses=network.getInetAddresses();
-            while(addresses.hasMoreElements()){
-                InetAddress address=addresses.nextElement();
-                if(address instanceof java.net.Inet4Address && address.isSiteLocalAddress()){
-                    host=address.getHostAddress();break;
+        long networkDeadline=android.os.SystemClock.elapsedRealtime()+30000;
+        while(host==null && android.os.SystemClock.elapsedRealtime()<networkDeadline){
+            java.util.Enumeration<java.net.NetworkInterface> interfaces=java.net.NetworkInterface.getNetworkInterfaces();
+            while(interfaces.hasMoreElements() && host==null){
+                java.net.NetworkInterface network=interfaces.nextElement();
+                if(!network.isUp() || network.isLoopback())continue;
+                java.util.Enumeration<InetAddress> addresses=network.getInetAddresses();
+                while(addresses.hasMoreElements()){
+                    InetAddress address=addresses.nextElement();
+                    if(address instanceof java.net.Inet4Address && address.isSiteLocalAddress()){
+                        host=address.getHostAddress();break;
+                    }
                 }
             }
+            if(host==null)Thread.sleep(200);
         }
         check(host!=null,"Emulator has no assigned private IPv4 address");
         KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);
